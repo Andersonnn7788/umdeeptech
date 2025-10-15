@@ -1,0 +1,412 @@
+'use client'
+
+import { useState, useEffect, use } from 'react'
+import { useRouter } from 'next/navigation'
+import Image from 'next/image'
+import LoadingSpinner from '@/components/LoadingSpinner'
+
+interface CaseData {
+  id: string
+  status: string
+  image_url: string
+  thumbnail_url: string
+  created_at: string
+  submitted_for_review_at?: string
+  completed_at?: string
+  analysis_results?: Array<{
+    id: string
+    ai_confidence_score: number
+    detected_conditions: Array<{
+      name: string
+      confidence: number
+      description: string
+    }>
+    severity: string
+    recommendations: string
+    analysis_metadata: {
+      visible_characteristics?: string
+      disclaimer?: string
+    }
+  }>
+  dermatologist_reviews?: Array<{
+    id: string
+    professional_diagnosis: string
+    treatment_recommendations: string
+    urgency_level: string
+    notes?: string
+    reviewed_at: string
+  }>
+  user_reports?: Array<{
+    id: string
+    report_data: {
+      case_summary: string
+      recommendations: string[]
+      next_steps: string[]
+      disclaimer: string
+    }
+  }>
+}
+
+export default function CaseDetailsPage({ params }: { params: Promise<{ caseId: string }> }) {
+  const resolvedParams = use(params)
+  const router = useRouter()
+  const [caseData, setCaseData] = useState<CaseData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetchCase()
+  }, [])
+
+  const fetchCase = async () => {
+    try {
+      const response = await fetch(`/api/cases/${resolvedParams.caseId}`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch case')
+      }
+      const data = await response.json()
+      setCaseData(data.case)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'uploaded': return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+      case 'analyzing': return 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+      case 'analyzed': return 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+      case 'submitted_for_review': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'
+      case 'under_review': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'
+      case 'approved': return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+      case 'completed': return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+      case 'requires_resubmission': return 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300'
+      default: return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+    }
+  }
+
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case 'low': return 'text-green-600 bg-green-100 dark:bg-green-900 dark:text-green-300'
+      case 'moderate': return 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900 dark:text-yellow-300'
+      case 'high': return 'text-orange-600 bg-orange-100 dark:bg-orange-900 dark:text-orange-300'
+      case 'urgent': return 'text-red-600 bg-red-100 dark:bg-red-900 dark:text-red-300'
+      default: return 'text-gray-600 bg-gray-100 dark:bg-gray-800 dark:text-gray-300'
+    }
+  }
+
+  const formatStatus = (status: string) => {
+    return status.split('_').map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1)
+    ).join(' ')
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingSpinner size="lg" text="Loading case details..." />
+      </div>
+    )
+  }
+
+  if (error || !caseData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-bold mb-2">Case Not Found</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">{error || 'The requested case could not be found'}</p>
+          <button
+            onClick={() => router.push('/')}
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors"
+          >
+            Go Home
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const analysis = caseData.analysis_results?.[0]
+  const review = caseData.dermatologist_reviews?.[0]
+  const report = caseData.user_reports?.[0]
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-800">
+      {/* Header */}
+      <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
+        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => router.push('/')}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <div>
+              <h1 className="text-xl font-bold">Case Details</h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                ID: {caseData.id.slice(0, 8)}...
+              </p>
+            </div>
+          </div>
+          <span className={`px-4 py-2 rounded-full font-semibold text-sm ${getStatusColor(caseData.status)}`}>
+            {formatStatus(caseData.status)}
+          </span>
+        </div>
+      </header>
+
+      <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+        {/* Image Section */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
+          <h2 className="text-xl font-bold mb-4">Submitted Image</h2>
+          <div className="relative w-full max-w-md mx-auto aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700">
+            <Image
+              src={caseData.image_url}
+              alt="Case image"
+              fill
+              className="object-cover"
+            />
+          </div>
+          <p className="text-sm text-gray-600 dark:text-gray-400 text-center mt-4">
+            Submitted on {new Date(caseData.created_at).toLocaleDateString()} at{' '}
+            {new Date(caseData.created_at).toLocaleTimeString()}
+          </p>
+        </div>
+
+        {/* AI Analysis Section */}
+        {analysis && (
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-start justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
+                  <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold">AI Analysis</h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Preliminary Assessment</p>
+                </div>
+              </div>
+              <span className={`px-4 py-2 rounded-full font-semibold text-sm ${getSeverityColor(analysis.severity)}`}>
+                {analysis.severity.toUpperCase()}
+              </span>
+            </div>
+
+            <div className="space-y-4">
+              {/* Confidence Score */}
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-medium">Confidence Score</span>
+                  <span className="font-bold">{analysis.ai_confidence_score}%</span>
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                  <div
+                    className="bg-blue-600 h-2 rounded-full transition-all"
+                    style={{ width: `${analysis.ai_confidence_score}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Detected Conditions */}
+              {analysis.detected_conditions && analysis.detected_conditions.length > 0 && (
+                <div>
+                  <h3 className="font-semibold mb-3">Possible Conditions</h3>
+                  <div className="space-y-3">
+                    {analysis.detected_conditions.map((condition, index) => (
+                      <div key={index} className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl">
+                        <div className="flex justify-between items-start mb-2">
+                          <h4 className="font-medium">{condition.name}</h4>
+                          <span className="text-sm text-gray-600 dark:text-gray-400">
+                            {condition.confidence}%
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-700 dark:text-gray-300">
+                          {condition.description}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Visible Characteristics */}
+              {analysis.analysis_metadata?.visible_characteristics && (
+                <div>
+                  <h3 className="font-semibold mb-2">Observations</h3>
+                  <p className="text-gray-700 dark:text-gray-300 p-4 bg-gray-50 dark:bg-gray-900 rounded-xl">
+                    {analysis.analysis_metadata.visible_characteristics}
+                  </p>
+                </div>
+              )}
+
+              {/* AI Recommendations */}
+              <div>
+                <h3 className="font-semibold mb-2">AI Recommendations</h3>
+                <p className="text-gray-700 dark:text-gray-300 p-4 bg-gray-50 dark:bg-gray-900 rounded-xl">
+                  {analysis.recommendations}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Dermatologist Review Section */}
+        {review && (
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-start justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
+                  <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold">Professional Review</h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Reviewed on {new Date(review.reviewed_at).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+              <span className={`px-4 py-2 rounded-full font-semibold text-sm ${getSeverityColor(review.urgency_level)}`}>
+                {review.urgency_level.toUpperCase()}
+              </span>
+            </div>
+
+            <div className="space-y-4">
+              {/* Professional Diagnosis */}
+              <div>
+                <h3 className="font-semibold mb-2">Professional Diagnosis</h3>
+                <p className="text-gray-700 dark:text-gray-300 p-4 bg-green-50 dark:bg-green-950 rounded-xl">
+                  {review.professional_diagnosis}
+                </p>
+              </div>
+
+              {/* Treatment Recommendations */}
+              <div>
+                <h3 className="font-semibold mb-2">Treatment Recommendations</h3>
+                <p className="text-gray-700 dark:text-gray-300 p-4 bg-green-50 dark:bg-green-950 rounded-xl whitespace-pre-line">
+                  {review.treatment_recommendations}
+                </p>
+              </div>
+
+              {/* Additional Notes */}
+              {review.notes && (
+                <div>
+                  <h3 className="font-semibold mb-2">Additional Notes</h3>
+                  <p className="text-gray-700 dark:text-gray-300 p-4 bg-gray-50 dark:bg-gray-900 rounded-xl">
+                    {review.notes}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* User Report Section */}
+        {report && (
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center">
+                <svg className="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-xl font-bold">Complete Report</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Summary and Next Steps</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {/* Case Summary */}
+              <div>
+                <h3 className="font-semibold mb-2">Case Summary</h3>
+                <p className="text-gray-700 dark:text-gray-300 p-4 bg-gray-50 dark:bg-gray-900 rounded-xl">
+                  {report.report_data.case_summary}
+                </p>
+              </div>
+
+              {/* Recommendations */}
+              {report.report_data.recommendations && report.report_data.recommendations.length > 0 && (
+                <div>
+                  <h3 className="font-semibold mb-2">Key Recommendations</h3>
+                  <ul className="space-y-2">
+                    {report.report_data.recommendations.map((rec, index) => (
+                      <li key={index} className="flex items-start gap-3 p-3 bg-blue-50 dark:bg-blue-950 rounded-xl">
+                        <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        <span className="text-gray-700 dark:text-gray-300">{rec}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Next Steps */}
+              {report.report_data.next_steps && report.report_data.next_steps.length > 0 && (
+                <div>
+                  <h3 className="font-semibold mb-2">Next Steps</h3>
+                  <ol className="space-y-2">
+                    {report.report_data.next_steps.map((step, index) => (
+                      <li key={index} className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-xl">
+                        <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                          {index + 1}
+                        </span>
+                        <span className="text-gray-700 dark:text-gray-300">{step}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+
+              {/* Disclaimer */}
+              <div className="p-4 bg-yellow-50 dark:bg-yellow-900 rounded-xl border border-yellow-200 dark:border-yellow-700">
+                <div className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  <div>
+                    <h4 className="font-semibold text-yellow-900 dark:text-yellow-200 mb-1">
+                      Important
+                    </h4>
+                    <p className="text-sm text-yellow-800 dark:text-yellow-300">
+                      {report.report_data.disclaimer}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Pending Review Message */}
+        {!review && caseData.status === 'submitted_for_review' && (
+          <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
+            <div className="w-16 h-16 bg-yellow-100 dark:bg-yellow-900 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold mb-2">Review Pending</h3>
+            <p className="text-gray-600 dark:text-gray-400">
+              Your case is in the queue for dermatologist review.<br />
+              We'll notify you once the review is complete.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+

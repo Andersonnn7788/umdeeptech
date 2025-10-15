@@ -289,3 +289,122 @@ CREATE TRIGGER update_cases_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
+-- ==========================================
+-- APPOINTMENT SYSTEM TABLES
+-- ==========================================
+
+-- Create doctors table
+CREATE TABLE IF NOT EXISTS doctors (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    specialty VARCHAR(255) NOT NULL,
+    title VARCHAR(255),
+    location VARCHAR(255),
+    experience TEXT,
+    rating DECIMAL(3,2) DEFAULT 5.0,
+    avatar TEXT,
+    category VARCHAR(50) NOT NULL CHECK (category IN ('Medical', 'Surgical', 'Pediatric', 'Allergy', 'Dermatology')),
+    available BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create patients table
+CREATE TABLE IF NOT EXISTS patients (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    phone VARCHAR(50),
+    date_of_birth DATE,
+    avatar TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create appointments table
+CREATE TABLE IF NOT EXISTS appointments (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+    doctor_id UUID NOT NULL REFERENCES doctors(id) ON DELETE CASCADE,
+    appointment_date DATE NOT NULL,
+    appointment_time TIME NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('confirmed', 'completed', 'cancelled', 'pending')),
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- Ensure no double booking for same doctor at same time
+    UNIQUE(doctor_id, appointment_date, appointment_time)
+);
+
+-- Create indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_appointments_patient_date ON appointments(patient_id, appointment_date);
+CREATE INDEX IF NOT EXISTS idx_appointments_doctor_date ON appointments(doctor_id, appointment_date);
+CREATE INDEX IF NOT EXISTS idx_appointments_status ON appointments(status);
+CREATE INDEX IF NOT EXISTS idx_doctors_category ON doctors(category);
+CREATE INDEX IF NOT EXISTS idx_doctors_available ON doctors(available);
+
+-- Create triggers for updated_at
+CREATE TRIGGER update_doctors_updated_at BEFORE UPDATE ON doctors
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_patients_updated_at BEFORE UPDATE ON patients
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_appointments_updated_at BEFORE UPDATE ON appointments
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Insert sample doctors
+INSERT INTO doctors (name, specialty, title, location, experience, rating, avatar, category) VALUES
+('Dr. Rodger Struck', 'General Dentist', 'Senior Dentist', 'City Medical Center', '10+ years experience', 4.8, '/caring-doctor.png', 'Medical'),
+('Dr. Kathy Pacheco', 'Heart Surgeon', 'Senior Cardiologist and Surgeon', 'London Heart Hospital', '15+ years experience', 4.8, '/caring-doctor.png', 'Surgical'),
+('Dr. Lorri Worf', 'General Dentist', 'General Practitioner', 'Downtown Clinic', '8+ years experience', 4.8, '/caring-doctor.png', 'Medical'),
+('Dr. Chris Glasser', 'Heart Surgeon', 'Cardiovascular Surgeon', 'London Heart Hospital', '12+ years experience', 4.8, '/caring-doctor.png', 'Surgical'),
+('Dr. Kenneth Allen', 'Pediatrician', 'Child Specialist', 'Children''s Medical Center', '15+ years experience', 4.8, '/caring-doctor.png', 'Pediatric'),
+('Dr. Sarah Mitchell', 'Allergy Specialist', 'Immunologist', 'Allergy Care Center', '10+ years experience', 4.9, '/caring-doctor.png', 'Allergy'),
+('Dr. Ali Uzair', 'Cardiologist', 'Senior Cardiologist and Surgeon', 'Majeed Memorial Hospital, Karachi', '15+ years experience in cardiovascular surgery', 4.9, '/caring-doctor.png', 'Medical'),
+('Dr. Padma Jignesh', 'Orthopedic Surgeon', 'Orthopedic Specialist', 'Bone & Joint Hospital', '12+ years experience', 4.7, '/caring-doctor.png', 'Surgical'),
+('Dr. Aaron Leigh', 'Dermatologist', 'Skin Specialist', 'Skin Care Clinic', '8+ years experience', 4.8, '/caring-doctor.png', 'Dermatology');
+
+-- Insert sample patient (you can modify this)
+INSERT INTO patients (id, name, email, phone) VALUES
+('aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', 'John Doe', 'john.doe@example.com', '+1234567890')
+ON CONFLICT (id) DO NOTHING;
+
+-- Enable Row Level Security (RLS) for appointment tables
+ALTER TABLE doctors ENABLE ROW LEVEL SECURITY;
+ALTER TABLE patients ENABLE ROW LEVEL SECURITY;
+ALTER TABLE appointments ENABLE ROW LEVEL SECURITY;
+
+-- Create policies (adjust based on your auth requirements)
+-- For now, allow read access to doctors for all users
+CREATE POLICY "Doctors are viewable by everyone" ON doctors
+    FOR SELECT USING (true);
+
+-- Allow patients to see their own data
+CREATE POLICY "Patients can view own data" ON patients
+    FOR SELECT USING (auth.uid()::text = id::text OR id::text = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee');
+
+-- Allow users to update their own patient data
+CREATE POLICY "Users can update own patient data" ON patients
+    FOR UPDATE USING (auth.uid()::text = id::text);
+
+-- Allow patients to see their own appointments
+CREATE POLICY "Patients can view own appointments" ON appointments
+    FOR SELECT USING (auth.uid()::text = patient_id::text);
+
+-- Allow users to create appointments for themselves
+CREATE POLICY "Users can create appointments" ON appointments
+    FOR INSERT WITH CHECK (auth.uid()::text = patient_id::text);
+
+-- Allow users to update their own appointments
+CREATE POLICY "Users can update own appointments" ON appointments
+    FOR UPDATE USING (auth.uid()::text = patient_id::text);
+
+-- For development: Allow anonymous users to create appointments with the sample patient
+CREATE POLICY "Anonymous users can create sample appointments" ON appointments
+    FOR INSERT WITH CHECK (
+        patient_id::text = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+        OR auth.uid() IS NOT NULL
+    );
+

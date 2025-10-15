@@ -10,6 +10,12 @@ export default function Home() {
       {/* Header */}
       <header className="w-full px-4 py-4 flex justify-end items-center">
         <button
+          onClick={() => router.push('/appointments')}
+          className="px-5 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-2 border-gray-200 dark:border-gray-600 rounded-lg font-medium text-sm hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-blue-500 dark:hover:border-blue-500 transition-all shadow-sm hover:shadow-md"
+        >
+          Appointments
+        </button>
+        <button
           onClick={() => router.push('/dermatologist/cases')}
           className="px-4 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-2 border-gray-200 dark:border-gray-600 rounded-lg font-medium text-sm hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-blue-500 dark:hover:border-blue-500 transition-all shadow-sm hover:shadow-md"
         >
@@ -56,6 +62,6 @@ export default function Home() {
           </div>
         </div>
       </main>
-    </div>
+    </div >
   )
 }

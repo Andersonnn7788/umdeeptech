@@ -47,8 +47,8 @@ export async function POST(request: NextRequest) {
 IMPORTANT DISCLAIMER: You are NOT a medical professional and do NOT provide medical diagnoses. 
 Your role is to:
 1. Describe visible characteristics of the skin condition
-2. Suggest possible common conditions that may match the appearance
-3. Provide general skincare recommendations
+2. Suggest 3 possible common conditions that may match the appearance
+3. Provide at most 5 general skincare recommendations
 4. Strongly recommend consulting a dermatologist for professional diagnosis
 
 Respond in JSON format with the following structure:
@@ -68,6 +68,11 @@ Respond in JSON format with the following structure:
   "disclaimer": "This is not a medical diagnosis. Please consult a dermatologist."
 }`
 
+    // Build the user message content
+    const userTextContent = caseData.patient_description
+      ? `Please analyze this skin image and provide preliminary observations.\n\nPatient's Description of Symptoms:\n${caseData.patient_description}`
+      : 'Please analyze this skin image and provide preliminary observations.'
+
     const baseMessages = [
       {
         role: 'system' as const,
@@ -76,7 +81,7 @@ Respond in JSON format with the following structure:
       {
         role: 'user' as const,
         content: [
-          { type: 'text' as const, text: 'Please analyze this skin image and provide preliminary observations.' },
+          { type: 'text' as const, text: userTextContent },
           { type: 'image_url' as const, image_url: { url: caseData.image_url, detail: 'high' } }
         ]
       }

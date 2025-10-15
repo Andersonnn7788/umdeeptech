@@ -10,6 +10,7 @@ interface CaseData {
   status: string
   image_url: string
   thumbnail_url: string
+  patient_description?: string
   created_at: string
   submitted_for_review_at?: string
   completed_at?: string
@@ -181,6 +182,23 @@ export default function CaseDetailsPage({ params }: { params: Promise<{ caseId: 
             {new Date(caseData.created_at).toLocaleTimeString()}
           </p>
         </div>
+
+        {/* Patient Description Section */}
+        {caseData.patient_description && (
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center">
+                <svg className="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-bold">Patient's Description</h2>
+            </div>
+            <p className="text-gray-700 dark:text-gray-300 p-4 bg-purple-50 dark:bg-purple-950 rounded-xl whitespace-pre-line">
+              {caseData.patient_description}
+            </p>
+          </div>
+        )}
 
         {/* AI Analysis Section */}
         {analysis && (
@@ -409,4 +427,5 @@ export default function CaseDetailsPage({ params }: { params: Promise<{ caseId: 
     </div>
   )
 }
+
 

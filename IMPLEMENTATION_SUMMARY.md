@@ -355,3 +355,4 @@ To get started:
 
 Built with ❤️ using Next.js, Supabase, and OpenAI
 
+

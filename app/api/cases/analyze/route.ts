@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import OpenAI from 'openai'
 
 const openai = new OpenAI({
@@ -9,6 +10,7 @@ const openai = new OpenAI({
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
+    const adminSupabase = createAdminClient()
 
     // Check authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -147,21 +149,27 @@ Respond in JSON format with the following structure:
       throw new Error('Invalid analysis format returned from AI')
     }
 
-    // Store analysis result
-    const { data: analysisResult, error: analysisError } = await supabase
+    // Store analysis result (allow re-analysis by updating the existing row)
+    const analyzedAt = new Date().toISOString()
+    const analysisPayload = {
+      case_id: caseId,
+      ai_confidence_score: analysis.confidence_score,
+      detected_conditions: analysis.detected_conditions,
+      severity: analysis.severity,
+      recommendations: analysis.recommendations,
+      analysis_metadata: {
+        visible_characteristics: analysis.visible_characteristics,
+        disclaimer: analysis.disclaimer,
+        model: 'gpt-5-mini',
+        analyzed_at: analyzedAt,
+      },
+    }
+
+    const { data: analysisResult, error: analysisError } = await adminSupabase
       .from('analysis_results')
-      .insert({
-        case_id: caseId,
-        ai_confidence_score: analysis.confidence_score,
-        detected_conditions: analysis.detected_conditions,
-        severity: analysis.severity,
-        recommendations: analysis.recommendations,
-        analysis_metadata: {
-          visible_characteristics: analysis.visible_characteristics,
-          disclaimer: analysis.disclaimer,
-          model: 'gpt-5-mini',
-          analyzed_at: new Date().toISOString()
-        }
+      .upsert(analysisPayload, {
+        onConflict: 'case_id',
+        ignoreDuplicates: false,
       })
       .select()
       .single()

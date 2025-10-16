@@ -330,12 +330,23 @@ CREATE TABLE IF NOT EXISTS appointments (
     appointment_time TIME NOT NULL,
     status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('confirmed', 'completed', 'cancelled', 'pending')),
     notes TEXT,
+    calendar_event_id TEXT, -- Google Calendar event ID for integration
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     
     -- Ensure no double booking for same doctor at same time
     UNIQUE(doctor_id, appointment_date, appointment_time)
 );
+
+-- Add calendar_event_id column if it doesn't exist (for existing databases)
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'appointments' 
+                   AND column_name = 'calendar_event_id') THEN
+        ALTER TABLE appointments ADD COLUMN calendar_event_id TEXT;
+    END IF;
+END $$;
 
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_appointments_patient_date ON appointments(patient_id, appointment_date);
@@ -400,6 +411,10 @@ CREATE POLICY "Users can create appointments" ON appointments
 -- Allow users to update their own appointments
 CREATE POLICY "Users can update own appointments" ON appointments
     FOR UPDATE USING (auth.uid()::text = patient_id::text);
+
+-- Allow users to delete their own appointments
+CREATE POLICY "Users can delete own appointments" ON appointments
+    FOR DELETE USING (auth.uid()::text = patient_id::text);
 
 -- For development: Allow anonymous users to create appointments with the sample patient
 CREATE POLICY "Anonymous users can create sample appointments" ON appointments

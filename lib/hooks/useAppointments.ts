@@ -185,3 +185,36 @@ export function useDoctorAppointmentsByDate(doctorId: string, date: string) {
 
   return { appointments, loading, error, refetch: fetchAppointments }
 }
+
+// Hook for deleting appointments
+export function useDeleteAppointment() {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const deleteAppointment = async (appointmentId: string) => {
+    try {
+      setLoading(true)
+      setError(null)
+      
+      const response = await fetch(`/api/appointments/${appointmentId}`, {
+        method: 'DELETE',
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to delete appointment')
+      }
+      
+      const data = await response.json()
+      return { success: true, data, error: null }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
+      setError(errorMessage)
+      return { success: false, data: null, error: errorMessage }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return { deleteAppointment, loading, error }
+}

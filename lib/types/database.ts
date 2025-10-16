@@ -34,6 +34,7 @@ export interface Appointment {
   appointment_time: string
   status: 'confirmed' | 'completed' | 'cancelled' | 'pending'
   notes?: string
+  calendar_event_id?: string
   created_at: string
   updated_at: string
   

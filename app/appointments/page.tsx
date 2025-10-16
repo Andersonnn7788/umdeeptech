@@ -5,10 +5,11 @@ import { Calendar } from "@/components/ui/calendar"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Plus, Clock, MoreVertical, ChevronLeft } from "lucide-react"
+import { Plus, Clock, ChevronLeft } from "lucide-react"
 import Link from "next/link"
 import { useAppointments, useCreateAppointment } from '@/lib/hooks/useAppointments'
 import BottomNavigation from '@/components/BottomNavigation'
+import AppointmentMenu from '@/components/AppointmentMenu'
 
 
 export default function AppointmentsPage() {
@@ -31,6 +32,9 @@ export default function AppointmentsPage() {
   // Combine appointments based on active tab
   const appointments = activeTab === 'upcoming' ? upcomingAppointments : pastAppointments
   const loading = activeTab === 'upcoming' ? loadingUpcoming : loadingPast
+
+  // Debug appointments data
+  console.log('Appointments page - appointments:', appointments?.map(apt => ({ id: apt.id, date: apt.appointment_date, time: apt.appointment_time })))
 
   // Extract dates from appointments for calendar highlighting
   const appointmentDates = appointments.map(apt => new Date(apt.appointment_date))
@@ -178,9 +182,27 @@ export default function AppointmentsPage() {
                             </svg>
                           </div>
                         )}
-                        <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full hover:bg-muted">
-                          <MoreVertical className="h-5 w-5" />
-                        </Button>
+                        {/* Show menu only for upcoming appointments */}
+                        {!formattedApt.isPast && (
+                          <AppointmentMenu
+                            appointment={{
+                              id: apt.id,
+                              appointment_date: apt.appointment_date,
+                              appointment_time: apt.appointment_time,
+                              calendar_event_id: apt.calendar_event_id,
+                              doctor: {
+                                name: formattedApt.doctor,
+                                specialty: formattedApt.specialty,
+                                location: apt.doctor?.location
+                              }
+                            }}
+                            onDeleted={() => {
+                              // Refresh both upcoming and past appointments
+                              refetchUpcoming()
+                              refetchPast()
+                            }}
+                          />
+                        )}
                       </div>
                     </div>
                   </div>

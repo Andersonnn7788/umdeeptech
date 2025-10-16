@@ -1,28 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDoctorById } from '@/lib/supabase/database/doctors'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const result = await getDoctorById(params.id)
+    const { id } = await params
+    const supabase = createAdminClient()
     
-    if (result.error) {
-      return NextResponse.json(
-        { error: result.error }, 
-        { status: 500 }
-      )
+    const { data, error } = await supabase
+      .from('doctors')
+      .select('*')
+      .eq('id', id)
+      .single()
+    
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
     
-    if (!result.data) {
+    if (!data) {
       return NextResponse.json(
         { error: 'Doctor not found' }, 
         { status: 404 }
       )
     }
     
-    return NextResponse.json(result.data)
+    return NextResponse.json(data)
   } catch (error) {
     return NextResponse.json(
       { error: 'Internal server error' }, 

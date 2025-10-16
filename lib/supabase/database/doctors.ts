@@ -1,5 +1,7 @@
-import { supabase } from '@/lib/supabase/client'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type { Doctor, DatabaseResponse, DatabaseListResponse } from '@/lib/types/database'
+
+const supabase = createAdminClient()
 
 export async function getDoctors(): Promise<DatabaseListResponse<Doctor>> {
   try {

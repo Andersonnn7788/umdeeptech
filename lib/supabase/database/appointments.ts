@@ -1,5 +1,7 @@
-import { supabase } from '@/lib/supabase/client'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type { Appointment, CreateAppointmentData, UpdateAppointmentData, DatabaseResponse, DatabaseListResponse } from '@/lib/types/database'
+
+const supabase = createAdminClient()
 
 export async function getAppointments(patientId?: string): Promise<DatabaseListResponse<Appointment>> {
   try {
@@ -121,7 +123,9 @@ export async function deleteAppointment(id: string): Promise<DatabaseResponse<bo
 
 export async function getUpcomingAppointments(patientId?: string): Promise<DatabaseListResponse<Appointment>> {
   try {
-    const today = new Date().toISOString().split('T')[0]
+    const now = new Date()
+    const today = now.toISOString().split('T')[0]
+    const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:00`
     
     let query = supabase
       .from('appointments')
@@ -130,7 +134,6 @@ export async function getUpcomingAppointments(patientId?: string): Promise<Datab
         doctor:doctors(*),
         patient:patients(*)
       `)
-      .gte('appointment_date', today)
       .in('status', ['confirmed', 'pending'])
       .order('appointment_date', { ascending: true })
       .order('appointment_time', { ascending: true })
@@ -145,7 +148,26 @@ export async function getUpcomingAppointments(patientId?: string): Promise<Datab
       return { data: null, error: error.message }
     }
     
-    return { data: data as Appointment[], error: null }
+    // Filter appointments to only include future ones (considering both date and time)
+    const filteredData = (data as Appointment[]).filter(appointment => {
+      const appointmentDate = appointment.appointment_date
+      const appointmentTime = appointment.appointment_time
+      
+      // If appointment is on a future date, it's upcoming
+      if (appointmentDate > today) {
+        return true
+      }
+      
+      // If appointment is today, check if time hasn't passed yet
+      if (appointmentDate === today) {
+        return appointmentTime > currentTime
+      }
+      
+      // If appointment is on a past date, it's not upcoming
+      return false
+    })
+    
+    return { data: filteredData, error: null }
   } catch (error) {
     return { data: null, error: 'Failed to fetch upcoming appointments' }
   }
@@ -153,7 +175,9 @@ export async function getUpcomingAppointments(patientId?: string): Promise<Datab
 
 export async function getPastAppointments(patientId?: string): Promise<DatabaseListResponse<Appointment>> {
   try {
-    const today = new Date().toISOString().split('T')[0]
+    const now = new Date()
+    const today = now.toISOString().split('T')[0]
+    const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:00`
     
     let query = supabase
       .from('appointments')
@@ -162,7 +186,6 @@ export async function getPastAppointments(patientId?: string): Promise<DatabaseL
         doctor:doctors(*),
         patient:patients(*)
       `)
-      .or(`appointment_date.lt.${today},status.eq.completed,status.eq.cancelled`)
       .order('appointment_date', { ascending: false })
       .order('appointment_time', { ascending: false })
     
@@ -176,7 +199,32 @@ export async function getPastAppointments(patientId?: string): Promise<DatabaseL
       return { data: null, error: error.message }
     }
     
-    return { data: data as Appointment[], error: null }
+    // Filter appointments to include past ones (considering both date and time) or completed/cancelled status
+    const filteredData = (data as Appointment[]).filter(appointment => {
+      const appointmentDate = appointment.appointment_date
+      const appointmentTime = appointment.appointment_time
+      const status = appointment.status
+      
+      // Include completed or cancelled appointments regardless of date/time
+      if (status === 'completed' || status === 'cancelled') {
+        return true
+      }
+      
+      // If appointment is on a past date, it's past
+      if (appointmentDate < today) {
+        return true
+      }
+      
+      // If appointment is today, check if time has already passed
+      if (appointmentDate === today) {
+        return appointmentTime <= currentTime
+      }
+      
+      // If appointment is on a future date, it's not past
+      return false
+    })
+    
+    return { data: filteredData, error: null }
   } catch (error) {
     return { data: null, error: 'Failed to fetch past appointments' }
   }

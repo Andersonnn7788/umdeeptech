@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Calendar } from "@/components/ui/calendar"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -14,9 +14,19 @@ import BottomNavigation from '@/components/BottomNavigation'
 export default function AppointmentsPage() {
   const [date, setDate] = useState<Date | undefined>(new Date())
   const [activeTab, setActiveTab] = useState<"upcoming" | "past">("upcoming")
-  const { appointments: upcomingAppointments, loading: loadingUpcoming, error } = useAppointments('upcoming')
-  const { appointments: pastAppointments, loading: loadingPast } = useAppointments('past')
+  const { appointments: upcomingAppointments, loading: loadingUpcoming, error, refetch: refetchUpcoming } = useAppointments('upcoming')
+  const { appointments: pastAppointments, loading: loadingPast, refetch: refetchPast } = useAppointments('past')
   const { createAppointment } = useCreateAppointment()
+
+  // Refresh appointments every minute to automatically move past appointments
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refetchUpcoming()
+      refetchPast()
+    }, 60000) // Refresh every 60 seconds
+
+    return () => clearInterval(interval)
+  }, [refetchUpcoming, refetchPast])
 
   // Combine appointments based on active tab
   const appointments = activeTab === 'upcoming' ? upcomingAppointments : pastAppointments

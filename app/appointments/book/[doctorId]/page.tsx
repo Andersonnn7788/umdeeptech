@@ -8,6 +8,8 @@ import { ChevronLeft } from "lucide-react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { useDoctor, useCreateAppointment, useDoctorAppointmentsByDate } from '@/lib/hooks/useAppointments'
+import { useGoogleCalendar } from '@/lib/hooks/useGoogleCalendar'
+import { useGoogleCalendarAuth } from '@/lib/hooks/useGoogleCalendarAuth'
 
 // Generate next 7 days
 const generateWeekDays = () => {
@@ -38,6 +40,11 @@ export default function BookAppointmentPage() {
   // Fetch doctor data
   const { doctor, loading: loadingDoctor, error: doctorError } = useDoctor(doctorId)
   const { createAppointment, loading: creatingAppointment, error: createError } = useCreateAppointment()
+  const { addAppointmentToCalendar } = useGoogleCalendar()
+  const { isGoogleUser, hasCalendarAccess, user } = useGoogleCalendarAuth()
+
+  // Debug logging
+  console.log('Booking Page Debug:', { isGoogleUser, hasCalendarAccess, user: user?.email })
   
   const weekDays = generateWeekDays()
   const [selectedDay, setSelectedDay] = useState(weekDays[0]?.fullDate)
@@ -86,9 +93,8 @@ export default function BookAppointmentPage() {
   const handleConfirm = async () => {
     if (selectedTime && selectedDay && doctor) {
       try {
-        // For now, using a placeholder patient ID - in real app, you'd get this from auth
+        // API will automatically use current user's patient record
         const result = await createAppointment({
-          patient_id: '12345678-1234-1234-1234-123456789012', // Using sample patient ID
           doctor_id: doctor.id,
           appointment_date: selectedDay,
           appointment_time: selectedTime,
@@ -96,7 +102,40 @@ export default function BookAppointmentPage() {
         })
 
         if (result.data) {
-          alert(`Appointment successfully booked with ${doctor.name} on ${selectedDay} at ${selectedTime}`)
+          let calendarMessage = ''
+          
+          // Try to add to Google Calendar if user has access
+          if (hasCalendarAccess) {
+            try {
+              const calendarResult = await addAppointmentToCalendar({
+                doctor: {
+                  name: doctor.name,
+                  specialty: doctor.specialty,
+                  location: doctor.location
+                },
+                patient: {
+                  name: user?.user_metadata?.name || user?.email || 'Patient',
+                  email: user?.email || ''
+                },
+                appointment_date: selectedDay,
+                appointment_time: selectedTime,
+                notes: `Appointment with ${doctor.name}`
+              })
+
+              if (calendarResult.success) {
+                calendarMessage = ' and added to your Google Calendar'
+              } else {
+                calendarMessage = `\n\n⚠️ Could not add to Google Calendar: ${calendarResult.error}`
+              }
+            } catch (calendarError) {
+              console.error('Calendar error:', calendarError)
+              calendarMessage = '\n\n⚠️ Could not add to Google Calendar'
+            }
+          } else if (isGoogleUser) {
+            calendarMessage = '\n\n💡 Calendar integration available - sign in with Google to sync appointments'
+          }
+
+          alert(`Appointment successfully booked with ${doctor.name} on ${selectedDay} at ${selectedTime}${calendarMessage}`)
           router.push("/appointments")
         } else {
           alert(`Error booking appointment: ${result.error}`)
@@ -207,10 +246,37 @@ export default function BookAppointmentPage() {
         </div>
 
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-b from-blue-50/80 to-white/80 dark:from-gray-900/80 dark:to-gray-800/80 backdrop-blur-sm border-t border-gray-200 dark:border-gray-700">
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-4xl mx-auto space-y-3">
+            {/* Calendar Status */}
+            {hasCalendarAccess && (
+              <div className="text-center mb-2">
+                <p className="text-sm text-green-600 dark:text-green-400 flex items-center justify-center gap-1">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Google Calendar connected - appointments will be added automatically
+                </p>
+              </div>
+            )}
+            
+            {!isGoogleUser && (
+              <div className="text-center mb-2">
+                <p className="text-sm text-blue-600 dark:text-blue-400 flex items-center justify-center gap-1">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <Link href="/auth/login" className="underline hover:no-underline">
+                    Sign in with Google
+                  </Link>
+                  {' '}for automatic calendar integration
+                </p>
+              </div>
+            )}
+
             {createError && (
               <p className="text-red-500 text-center mb-2 text-sm">{createError}</p>
             )}
+            
             <Button
               onClick={handleConfirm}
               disabled={!selectedTime || !selectedDay || creatingAppointment || loadingDoctor}

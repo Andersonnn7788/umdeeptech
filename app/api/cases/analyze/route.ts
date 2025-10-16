@@ -75,7 +75,7 @@ Respond in JSON format with the following structure:
         role: 'user' as const,
         content: [
           { type: 'text' as const, text: 'Please analyze this skin image and provide preliminary observations.' },
-          { type: 'image_url' as const, image_url: { url: caseData.image_url, detail: 'high' } }
+          { type: 'image_url' as const, image_url: { url: caseData.image_url, detail: 'high' as const } }
         ]
       }
     ]

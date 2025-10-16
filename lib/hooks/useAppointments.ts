@@ -111,7 +111,7 @@ export function useCreateAppointment() {
   const [error, setError] = useState<string | null>(null)
 
   const createAppointment = async (appointmentData: {
-    patient_id: string
+    patient_id?: string // Optional - API will use current user's patient record if not provided
     doctor_id: string
     appointment_date: string
     appointment_time: string

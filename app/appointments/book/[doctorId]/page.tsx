@@ -43,9 +43,6 @@ export default function BookAppointmentPage() {
   const { addAppointmentToCalendar } = useGoogleCalendar()
   const { isGoogleUser, hasCalendarAccess, user } = useGoogleCalendarAuth()
 
-  // Debug logging
-  console.log('Booking Page Debug:', { isGoogleUser, hasCalendarAccess, user: user?.email })
-  
   const weekDays = generateWeekDays()
   const [selectedDay, setSelectedDay] = useState(weekDays[0]?.fullDate)
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
@@ -247,17 +244,6 @@ export default function BookAppointmentPage() {
 
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-b from-blue-50/80 to-white/80 dark:from-gray-900/80 dark:to-gray-800/80 backdrop-blur-sm border-t border-gray-200 dark:border-gray-700">
           <div className="max-w-4xl mx-auto space-y-3">
-            {/* Calendar Status */}
-            {hasCalendarAccess && (
-              <div className="text-center mb-2">
-                <p className="text-sm text-green-600 dark:text-green-400 flex items-center justify-center gap-1">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  Google Calendar connected - appointments will be added automatically
-                </p>
-              </div>
-            )}
             
             {!isGoogleUser && (
               <div className="text-center mb-2">

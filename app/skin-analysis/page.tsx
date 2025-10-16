@@ -6,6 +6,7 @@ import PhotoCapture from '@/components/PhotoCapture'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import { DetectedCondition } from '@/lib/types/case'
 import { supabase } from '@/lib/supabase/client'
+import BottomNavigation from '@/components/BottomNavigation'
 
 type Step = 'upload' | 'analyzing' | 'results' | 'submitted'
 
@@ -124,8 +125,8 @@ export default function SkinAnalysisPage() {
     }
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-800">
+      return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-blue-50 dark:from-gray-900 dark:via-blue-950 dark:to-gray-900 pb-20">
       {/* Header */}
       <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-4">
@@ -373,6 +374,8 @@ export default function SkinAnalysisPage() {
           </div>
         )}
       </div>
+      
+      <BottomNavigation />
     </div>
   )
 }

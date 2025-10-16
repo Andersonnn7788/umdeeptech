@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Plus, Clock, MoreVertical, ChevronLeft } from "lucide-react"
 import Link from "next/link"
 import { useAppointments, useCreateAppointment } from '@/lib/hooks/useAppointments'
+import BottomNavigation from '@/components/BottomNavigation'
 
 
 export default function AppointmentsPage() {
@@ -40,7 +41,7 @@ export default function AppointmentsPage() {
   })
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-800">
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-800 pb-20">
       {/* Header */}
       <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
         <div className="flex items-center justify-between max-w-4xl mx-auto px-4 py-4">
@@ -179,6 +180,8 @@ export default function AppointmentsPage() {
           )}
         </div>
       </div>
+      
+      <BottomNavigation />
     </div>
   )
 }

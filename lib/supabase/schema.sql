@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS cases (
   status case_status DEFAULT 'uploaded',
   image_url TEXT NOT NULL,
   thumbnail_url TEXT,
+  patient_description TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   submitted_for_review_at TIMESTAMP WITH TIME ZONE,

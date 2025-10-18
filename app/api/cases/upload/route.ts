@@ -15,9 +15,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get the image from form data
+    // Get the image and patient description from form data
     const formData = await request.formData()
     const file = formData.get('image') as File
+    const patientDescription = formData.get('patientDescription') as string | null
     
     if (!file) {
       return NextResponse.json({ error: 'No image provided' }, { status: 400 })
@@ -98,6 +99,7 @@ export async function POST(request: NextRequest) {
         status: 'uploaded',
         image_url: imageUrlData.publicUrl,
         thumbnail_url: thumbnailUrlData.publicUrl,
+        patient_description: patientDescription || null,
       })
       .select()
       .single()

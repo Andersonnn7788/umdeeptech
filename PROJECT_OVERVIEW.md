@@ -369,3 +369,6 @@ This platform is ready to help people get preliminary skin analysis with profess
 
 Built with ❤️ using Next.js, Supabase, and OpenAI
 
+
+
+

@@ -24,6 +24,7 @@ export interface Case {
   status: CaseStatus
   image_url: string
   thumbnail_url?: string
+  patient_description?: string
   created_at: string
   updated_at: string
   submitted_for_review_at?: string
@@ -67,4 +68,5 @@ export interface UserReport {
   }
   created_at: string
 }
+
 

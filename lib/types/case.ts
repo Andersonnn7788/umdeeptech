@@ -30,6 +30,10 @@ export interface Case {
   updated_at: string
   submitted_for_review_at?: string
   completed_at?: string
+  patient?: {
+    id: string
+    name: string | null
+  }
 }
 
 export interface AnalysisResult {
@@ -66,8 +70,10 @@ export interface UserReport {
     recommendations: string[]
     next_steps: string[]
     disclaimer: string
+    pdf_path?: string
+    pdf_url?: string
+    pdf_generated_at?: string
   }
   created_at: string
 }
-
 

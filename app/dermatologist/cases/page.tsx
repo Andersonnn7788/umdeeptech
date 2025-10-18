@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import LoadingSpinner from '@/components/LoadingSpinner'
-import { WithAuth } from '@/components/WithAuth'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { Home, Calendar, Heart, User } from 'lucide-react'
 import Link from 'next/link'
@@ -227,7 +226,6 @@ export default function DermatologistCasesPage() {
           caseData={selectedCase}
           onClose={() => setSelectedCase(null)}
           onSubmit={() => {
-            setSelectedCase(null)
             fetchCases()
           }}
         />
@@ -285,6 +283,12 @@ function ReviewModal({ caseData, onClose, onSubmit }: ReviewModalProps) {
   const [notes, setNotes] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [submissionResult, setSubmissionResult] = useState<{
+    pdfUrl: string | null
+    pdfGeneratedAt: string | null
+    status: 'approved' | 'requires_resubmission'
+  } | null>(null)
+  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -312,9 +316,26 @@ function ReviewModal({ caseData, onClose, onSubmit }: ReviewModalProps) {
         }),
       })
 
-      if (!response.ok) {
-        throw new Error('Failed to submit review')
+      let data: any = null
+      try {
+        data = await response.json()
+      } catch {
+        // Ignore JSON parse errors; handled below
       }
+
+      if (!response.ok) {
+        const message =
+          (data && typeof data === 'object' && 'error' in data && typeof data.error === 'string')
+            ? data.error
+            : 'Failed to submit review'
+        throw new Error(message)
+      }
+
+      setSubmissionResult({
+        pdfUrl: data?.report?.pdfUrl ?? null,
+        pdfGeneratedAt: data?.report?.pdfGeneratedAt ?? null,
+        status,
+      })
 
       onSubmit()
     } catch (err) {
@@ -325,6 +346,7 @@ function ReviewModal({ caseData, onClose, onSubmit }: ReviewModalProps) {
   }
 
   const analysis = caseData.analysis_results?.[0]
+  const headerTitle = submissionResult ? 'Review Submitted' : 'Review Case'
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -339,7 +361,7 @@ function ReviewModal({ caseData, onClose, onSubmit }: ReviewModalProps) {
         <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-2xl font-bold">Review Case</h2>
+            <h2 className="text-2xl font-bold">{headerTitle}</h2>
             <button
               onClick={onClose}
               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
@@ -352,7 +374,76 @@ function ReviewModal({ caseData, onClose, onSubmit }: ReviewModalProps) {
 
           {/* Content */}
           <div className="overflow-y-auto max-h-[calc(90vh-140px)]">
-            <div className="p-6 space-y-6">
+            {submissionResult ? (
+              <div className="p-6 space-y-6">
+                <div className="flex flex-col items-center text-center space-y-3">
+                  <div className="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
+                    <svg className="w-8 h-8 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-bold">Review Submitted</h3>
+                  <p className="text-gray-600 dark:text-gray-300 max-w-md">
+                    A comprehensive PDF report has been generated and securely stored for the patient.
+                  </p>
+                  {submissionResult.pdfGeneratedAt && (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Generated on {new Date(submissionResult.pdfGeneratedAt).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
+                    <p className="text-xs uppercase text-gray-500 dark:text-gray-400 font-semibold mb-1">Patient</p>
+                    <p className="text-lg font-semibold">{caseData.patient?.name ?? 'Patient'}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
+                      Status updated to <span className="font-semibold">{submissionResult.status.replace('_', ' ')}</span>.
+                    </p>
+                  </div>
+
+                  <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-xl border border-blue-200 dark:border-blue-800">
+                    <p className="text-xs uppercase text-blue-700 dark:text-blue-300 font-semibold mb-2">Diagnosis Summary</p>
+                    <p className="text-sm text-blue-900 dark:text-blue-100 whitespace-pre-line">
+                      {professionalDiagnosis}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3">
+                  {submissionResult.pdfUrl ? (
+                    <a
+                      href={submissionResult.pdfUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4" />
+                      </svg>
+                      Open PDF Report
+                    </a>
+                  ) : (
+                    <div className="flex-1 px-6 py-3 bg-yellow-50 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 rounded-xl border border-yellow-200 dark:border-yellow-700 text-center text-sm font-medium">
+                      {submissionResult.status === 'approved'
+                        ? 'PDF generation is processing. Refresh shortly to download.'
+                        : 'No PDF is generated for resubmission requests; the patient has been asked for updates.'}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose()
+                      router.refresh()
+                    }}
+                    className="px-6 py-3 border border-gray-300 dark:border-gray-600 rounded-xl font-semibold hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    Back to Cases
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="p-6 space-y-6">
               {(caseData.patient?.name?.trim() ?? '').length > 0 && (
                 <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
                   <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 flex items-center justify-center">
@@ -551,6 +642,7 @@ function ReviewModal({ caseData, onClose, onSubmit }: ReviewModalProps) {
                 </div>
               </form>
             </div>
+            )}
           </div>
         </div>
       </div>

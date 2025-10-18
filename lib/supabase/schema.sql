@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS dermatologist_reviews (
   urgency_level severity_level,
   reviewed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   CONSTRAINT fk_case_review FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE,
-  CONSTRAINT fk_dermatologist FOREIGN KEY (dermatologist_id) REFERENCES auth.users(id) ON DELETE CASCADE
+  CONSTRAINT fk_dermatologist FOREIGN KEY (dermatologist_id) REFERENCES doctors(id) ON DELETE CASCADE
 );
 
 -- User Reports table - final reports delivered to users
@@ -222,6 +222,13 @@ CREATE POLICY "Service role can insert reports"
 -- Storage bucket for skin images (public so images can be rendered by the browser)
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('skin-images', 'skin-images', true)
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  public = EXCLUDED.public;
+
+-- Bucket for dermatologist review PDFs (kept private)
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('case-reports', 'case-reports', false)
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
   public = EXCLUDED.public;
@@ -447,4 +454,3 @@ DO $$ BEGIN
         ALTER TABLE patients ADD COLUMN role VARCHAR(50) DEFAULT 'patient' CHECK (role IN ('patient', 'doctor'));
     END IF;
 END $$;
-

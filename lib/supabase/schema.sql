@@ -233,6 +233,13 @@ ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
   public = EXCLUDED.public;
 
+-- Bucket for dermatologist review PDFs (kept private)
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('case-reports', 'case-reports', false)
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  public = EXCLUDED.public;
+
 -- Storage policies
 -- Idempotent: Users can upload their own images
 DO $$ BEGIN

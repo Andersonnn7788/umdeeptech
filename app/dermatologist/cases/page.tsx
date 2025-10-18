@@ -284,7 +284,6 @@ function ReviewModal({ caseData, onClose, onSubmit }: ReviewModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submissionResult, setSubmissionResult] = useState<{
-    pdfUrl: string | null
     pdfGeneratedAt: string | null
     status: 'approved' | 'requires_resubmission'
   } | null>(null)
@@ -331,13 +330,15 @@ function ReviewModal({ caseData, onClose, onSubmit }: ReviewModalProps) {
         throw new Error(message)
       }
 
-      setSubmissionResult({
-        pdfUrl: data?.report?.pdfUrl ?? null,
-        pdfGeneratedAt: data?.report?.pdfGeneratedAt ?? null,
-        status,
-      })
+        setSubmissionResult({
+          pdfGeneratedAt:
+            typeof data?.report?.pdfGeneratedAt === 'string'
+              ? data.report.pdfGeneratedAt
+              : null,
+          status,
+        })
 
-      onSubmit()
+        onSubmit()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
@@ -411,25 +412,9 @@ function ReviewModal({ caseData, onClose, onSubmit }: ReviewModalProps) {
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3">
-                  {submissionResult.pdfUrl ? (
-                    <a
-                      href={submissionResult.pdfUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4" />
-                      </svg>
-                      Open PDF Report
-                    </a>
-                  ) : (
-                    <div className="flex-1 px-6 py-3 bg-yellow-50 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 rounded-xl border border-yellow-200 dark:border-yellow-700 text-center text-sm font-medium">
-                      {submissionResult.status === 'approved'
-                        ? 'PDF generation is processing. Refresh shortly to download.'
-                        : 'No PDF is generated for resubmission requests; the patient has been asked for updates.'}
-                    </div>
-                  )}
+                  <div className="flex-1 px-6 py-3 bg-blue-50 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-xl border border-blue-200 dark:border-blue-700 text-center text-sm font-medium">
+                    A secure PDF has been sent to the patient and is available in their case view.
+                  </div>
                   <button
                     type="button"
                     onClick={() => {

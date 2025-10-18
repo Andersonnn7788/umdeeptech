@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 
+const CASE_REPORT_BUCKET = 'case-reports'
+
 interface PdfSectionContent {
   caseId: string
   generatedAt: string
@@ -19,6 +21,22 @@ interface PdfSectionContent {
     recommendations: string[]
     next_steps: string[]
     disclaimer: string
+  }
+}
+
+async function ensureCaseReportBucket(adminSupabase: ReturnType<typeof createAdminClient>) {
+  try {
+    const { data, error } = await adminSupabase.storage.getBucket(CASE_REPORT_BUCKET)
+    if (!data || error) {
+      const { error: createError } = await adminSupabase.storage.createBucket(CASE_REPORT_BUCKET, {
+        public: false,
+      })
+      if (createError && !createError.message?.toLowerCase().includes('already exists')) {
+        throw createError
+      }
+    }
+  } catch (error) {
+    throw error
   }
 }
 
@@ -216,13 +234,11 @@ async function buildReviewPdf(content: PdfSectionContent) {
   addSubHeading('Dermatologist Review')
   addParagraph(`Diagnosis: ${content.review?.professional_diagnosis ?? 'Not provided'}`)
   addParagraph(`Treatment Plan: ${content.review?.treatment_recommendations ?? 'Not provided'}`)
-  if (content.review?.urgency_level) addKeyValue('Urgency Level', content.review.urgency_level)
+  addParagraph(`Urgency Level: ${content.review?.urgency_level ?? 'Not specified'}`)
   if (typeof content.review?.agrees_with_ai === 'boolean') {
     addKeyValue('Agrees With AI', content.review.agrees_with_ai ? 'Yes' : 'No')
   }
-  if (content.review?.notes) {
-    addParagraph(`Additional Notes: ${content.review.notes}`)
-  }
+  addParagraph(`Additional Notes: ${content.review?.notes ?? 'None provided'}`)
 
   addSubHeading('Case Summary')
   addParagraph(content.reportData.case_summary)
@@ -326,8 +342,15 @@ export async function POST(request: NextRequest) {
 
     // If approved, create user report and PDF
     if (status === 'approved') {
-      // Get case data with analysis
-      const { data: caseData } = await supabase
+      try {
+        await ensureCaseReportBucket(adminSupabase)
+      } catch (bucketError) {
+        console.error('Failed to ensure review storage bucket:', bucketError)
+        return NextResponse.json({ error: 'Failed to prepare report storage' }, { status: 500 })
+      }
+
+      // Get case data with analysis using service role (bypass RLS)
+      const { data: caseData } = await adminSupabase
         .from('cases')
         .select(`
           *,
@@ -407,18 +430,18 @@ export async function POST(request: NextRequest) {
             })
 
           if (uploadError) {
-            console.warn('Failed to upload review PDF:', uploadError)
+            console.error('Failed to upload review PDF:', uploadError)
+            return NextResponse.json({ error: 'Failed to store review PDF' }, { status: 500 })
           } else {
             pdfPath = storagePath
           }
         } catch (pdfError) {
-          console.warn('Failed to generate review PDF:', pdfError)
+          console.error('Failed to generate review PDF:', pdfError)
+          return NextResponse.json({ error: 'Failed to generate review PDF' }, { status: 500 })
         }
 
-        if (pdfPath) {
-          reportData.pdf_path = pdfPath
-          reportData.pdf_generated_at = generatedAt
-        }
+        reportData.pdf_path = pdfPath
+        reportData.pdf_generated_at = generatedAt
 
         const { data: reportRecord, error: reportError } = await adminSupabase
           .from('user_reports')

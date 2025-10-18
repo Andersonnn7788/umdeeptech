@@ -19,7 +19,7 @@ export default function BottomNavigation() {
     {
       href: "/appointments",
       icon: Calendar,
-      label: "Appointments",
+      label: "Schedule",
       isActive: pathname.startsWith("/appointments"),
       clickable: true
     },

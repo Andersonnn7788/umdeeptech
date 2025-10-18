@@ -373,7 +373,7 @@ DOCTOR'S INSTRUCTIONS: "${schedulePrompt}"
 PRESCRIBED MEDICATIONS: ${prescriptions.join(', ')}
 
 REQUIREMENTS:
-1. Create schedule entries strictly based on the doctor's instruction
+1. Create schedule entries extactly same days based on the doctor's instruction
 
 OUTPUT FORMAT: Return ONLY a valid JSON array with this exact structure:
 [
@@ -382,14 +382,12 @@ OUTPUT FORMAT: Return ONLY a valid JSON array with this exact structure:
     "time": "08:00",
     "medicine": "Hydrocortisone 1% cream",
     "tips": "Apply thin layer to affected area after cleansing",
-    "image": null
   },
   {
     "date": "2025-10-20",
     "time": "20:00", 
     "medicine": "Hydrocortisone 1% cream",
     "tips": "Apply before bedtime, avoid covering with tight clothing",
-    "image": null
   }
 ]
 

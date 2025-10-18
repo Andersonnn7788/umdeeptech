@@ -1,220 +1,389 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Calendar } from "@/components/ui/calendar"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Plus, Clock, ChevronLeft } from "lucide-react"
+import { Plus, Clock, ChevronLeft, Camera, CheckCircle } from "lucide-react"
 import Link from "next/link"
-import { useAppointments, useCreateAppointment } from '@/lib/hooks/useAppointments'
 import BottomNavigation from '@/components/BottomNavigation'
-import AppointmentMenu from '@/components/AppointmentMenu'
 import { WithAuth } from '@/components/WithAuth'
+import { useAuth } from '@/lib/hooks/useAuth'
+import LoadingSpinner from '@/components/LoadingSpinner'
 
 
-export default function AppointmentsPage() {
-  const [date, setDate] = useState<Date | undefined>(new Date())
-  const [activeTab, setActiveTab] = useState<"upcoming" | "past">("upcoming")
-  const { appointments: upcomingAppointments, loading: loadingUpcoming, error, refetch: refetchUpcoming } = useAppointments('upcoming')
-  const { appointments: pastAppointments, loading: loadingPast, refetch: refetchPast } = useAppointments('past')
-  const { createAppointment } = useCreateAppointment()
+interface ScheduleItem {
+  id: string
+  date: string
+  time: string
+  medicine: string
+  tips: string
+  caseId: string
+  reviewId: string
+  caseStatus: string
+  medicationImages: string[] // Array of image URLs
+  imageCount: number
+}
 
-  // Refresh appointments every minute to automatically move past appointments
+interface Case {
+  id: string
+  status: string
+  schedule: ScheduleItem[]
+}
+
+export default function MedicationSchedulePage() {
+  const { user } = useAuth()
+  const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [selectedItem, setSelectedItem] = useState<ScheduleItem | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+
+  // Fetch user's medication schedule
+  const fetchSchedule = async () => {
+    if (!user) {
+      console.log('No user found, skipping schedule fetch')
+      return
+    }
+
+    try {
+      console.log('Fetching schedule for user:', user.id)
+      setLoading(true)
+      const response = await fetch('/api/users/schedule')
+      console.log('Schedule response status:', response.status)
+      
+      if (!response.ok) {
+        const errorData = await response.text()
+        console.error('Schedule API error:', errorData)
+        throw new Error(`Failed to fetch schedule: ${response.status} ${errorData}`)
+      }
+      
+      const data = await response.json()
+      console.log('Schedule data received:', data)
+      console.log('Number of schedule items:', data.schedule?.length || 0)
+      setScheduleItems(data.schedule || [])
+    } catch (err) {
+      console.error('Error fetching schedule:', err)
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
-    const interval = setInterval(() => {
-      refetchUpcoming()
-      refetchPast()
-    }, 60000) // Refresh every 60 seconds
+    fetchSchedule()
+  }, [user])
 
-    return () => clearInterval(interval)
-  }, [refetchUpcoming, refetchPast])
+  // Get unique dates and sort them
+  const uniqueDates = [...new Set(scheduleItems.map(item => item.date))].sort()
+  
+  // Filter items based on selected date
+  const filteredItems = selectedDate 
+    ? scheduleItems.filter(item => item.date === selectedDate)
+    : scheduleItems
 
-  // Combine appointments based on active tab
-  const appointments = activeTab === 'upcoming' ? upcomingAppointments : pastAppointments
-  const loading = activeTab === 'upcoming' ? loadingUpcoming : loadingPast
+  // Group filtered items by date
+  const groupedItems = filteredItems.reduce((groups, item) => {
+    const date = item.date
+    if (!groups[date]) groups[date] = []
+    groups[date].push(item)
+    return groups
+  }, {} as Record<string, ScheduleItem[]>)
 
-  // Debug appointments data
-  console.log('Appointments page - appointments:', appointments?.map(apt => ({ id: apt.id, date: apt.appointment_date, time: apt.appointment_time })))
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file || !selectedItem) {
+      console.log('No file or selectedItem:', { file: !!file, selectedItem: !!selectedItem })
+      return
+    }
 
-  // Extract dates from appointments for calendar highlighting
-  const appointmentDates = appointments.map(apt => new Date(apt.appointment_date))
+    console.log('Starting image upload for case:', {
+      caseId: selectedItem.caseId,
+      medicine: selectedItem.medicine
+    })
+    
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('image', file)
+      formData.append('caseId', selectedItem.caseId)
 
-  // Format appointment for display
-  const formatAppointment = (apt: any) => ({
-    ...apt,
-    date: new Date(apt.appointment_date).toLocaleDateString('en-US', { 
-      weekday: 'short', 
-      month: 'short', 
-      day: 'numeric' 
-    }),
-    time: apt.appointment_time,
-    doctor: apt.doctor?.name || 'Unknown Doctor',
-    specialty: apt.doctor?.specialty || 'Unknown Specialty',
-    avatar: apt.doctor?.avatar || '/caring-doctor.png',
-    isPast: activeTab === 'past'
-  })
+      console.log('Sending upload request...')
+      const response = await fetch('/api/users/schedule/upload', {
+        method: 'POST',
+        body: formData,
+      })
+
+      console.log('Upload response status:', response.status)
+      
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('Upload failed:', errorText)
+        throw new Error(`Failed to upload image: ${response.status} - ${errorText}`)
+      }
+
+      const data = await response.json()
+      console.log('Upload successful:', data)
+      
+      // Refresh the schedule data to get updated medication images
+      await fetchSchedule()
+      
+      setSelectedItem(null)
+    } catch (err) {
+      console.error('Upload error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to upload image')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <WithAuth redirectTo="/profile">
+        <div className="min-h-screen flex items-center justify-center">
+          <LoadingSpinner size="lg" text="Loading schedule..." />
+        </div>
+      </WithAuth>
+    )
+  }
 
   return (
     <WithAuth redirectTo="/profile">
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-800 pb-20">
-      {/* Header */}
-      <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
-        <div className="flex items-center justify-between max-w-4xl mx-auto px-4 py-4">
-          <div className="flex items-center gap-3">
-            <Link href="/">
-              <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-muted">
-                <ChevronLeft className="h-5 w-5" />
-              </Button>
-            </Link>
-            <h1 className="font-sans text-xl font-bold text-foreground">My Appointments</h1>
-          </div>
-          <Link href="/appointments/doctors">
-            <Button size="icon" className="h-12 w-12 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-xl hover:shadow-2xl transition-all">
-              <Plus className="h-6 w-6" />
-            </Button>
-          </Link>
-        </div>
-      </header>
-
-      <div className="p-4 max-w-4xl mx-auto">
-        <Card className="mb-6 p-4 shadow-md rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
-          <div className="flex justify-center">
-            <Calendar
-              mode="single"
-              selected={date}
-              onSelect={setDate}
-              className="rounded-md"
-              modifiers={{
-                appointment: appointmentDates,
-              }}
-              modifiersStyles={{
-                appointment: {
-                  backgroundColor: "rgb(37, 99, 235, 0.15)",
-                  color: "rgb(37, 99, 235)",
-                  fontWeight: "bold",
-                  borderRadius: "0.75rem",
-                },
-              }}
-            />
-          </div>
-        </Card>
-
-        <div className="mb-6 flex gap-2 bg-white dark:bg-gray-800 p-1.5 rounded-2xl shadow-md border border-gray-200 dark:border-gray-700">
-          <Button
-            variant={activeTab === "upcoming" ? "default" : "ghost"}
-            onClick={() => setActiveTab("upcoming")}
-            className={`flex-1 rounded-xl font-semibold ${
-              activeTab === "upcoming" ? "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-xl hover:shadow-2xl transition-all" : "hover:bg-muted"
-            }`}
-          >
-            Upcoming
-          </Button>
-          <Button
-            variant={activeTab === "past" ? "default" : "ghost"}
-            onClick={() => setActiveTab("past")}
-            className={`flex-1 rounded-xl font-semibold ${activeTab === "past" ? "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-xl hover:shadow-2xl transition-all" : "hover:bg-muted"}`}
-          >
-            Past
-          </Button>
-        </div>
-
-        <div className="space-y-4">
-          {loading ? (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-              <p className="text-muted-foreground mt-2">Loading appointments...</p>
-            </div>
-          ) : error ? (
-            <div className="text-center py-8">
-              <p className="text-red-500">Error: {error}</p>
-            </div>
-          ) : appointments.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">No {activeTab} appointments found.</p>
-              <Link href="/appointments/doctors">
-                <Button className="mt-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white">
-                  Book Your First Appointment
+      <div className="min-h-screen bg-blue-50 dark:from-gray-900 dark:to-gray-800 pb-20">
+        {/* Header */}
+        <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
+          <div className="flex items-center justify-between max-w-4xl mx-auto px-4 py-4">
+            <div className="flex items-center gap-3">
+              <Link href="/">
+                <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-muted">
+                  <ChevronLeft className="h-5 w-5" />
                 </Button>
               </Link>
+              <h1 className="font-sans text-xl font-bold text-foreground">My Medication Schedule</h1>
             </div>
-          ) : (
-            appointments.map((apt) => {
-              const formattedApt = formatAppointment(apt)
-              return (
-                <Card key={apt.id} className="relative overflow-hidden shadow-md rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
-                  {/* Green indicator line for upcoming appointments */}
-                  {!formattedApt.isPast && <div className="absolute left-0 top-0 h-full w-1.5 bg-accent" />}
+            </div>
+        </header>
 
-                  <div className="p-5">
-                    {/* Date and Time */}
-                    <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground pl-3">
-                      <Clock className="h-4 w-4" />
-                      <span className="font-semibold">{formattedApt.date}</span>
-                      <span>•</span>
-                      <span>{formattedApt.time}</span>
-                    </div>
-
-                    {/* Doctor Info */}
-                    <div className="flex items-center gap-4 pl-3">
-                      <Avatar className="h-16 w-16 border-2 border-border shadow-sm">
-                        <AvatarImage src={formattedApt.avatar} alt={formattedApt.doctor} />
-                        <AvatarFallback className="bg-primary/10 text-primary font-semibold text-lg">
-                          {formattedApt.doctor
-                            .split(" ")
-                            .map((n: string) => n[0])
-                            .join("")}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <h3 className="font-bold text-foreground text-base mb-1">{formattedApt.doctor}</h3>
-                        <p className="text-sm text-muted-foreground">{formattedApt.specialty}</p>
+        <div className="p-4 max-w-4xl mx-auto">
+          {/* Date Filter */}
+          {uniqueDates.length > 0 && (
+            <div className="mb-6">
+              <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                {uniqueDates.map((date) => {
+                  const dateObj = new Date(date)
+                  const isToday = date === new Date().toISOString().split('T')[0]
+                  const isSelected = selectedDate === date
+                  const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' })
+                  const dayNumber = dateObj.getDate()
+                  
+                  return (
+                    <button
+                      key={date}
+                      onClick={() => setSelectedDate(isSelected ? null : date)}
+                      className={`flex-shrink-0 w-16 h-20 rounded-2xl border-2 transition-all duration-200 ${
+                        isSelected
+                          ? "bg-blue-600 border-blue-600 text-white shadow-lg transform scale-105"
+                          : isToday
+                          ? "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                          : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300"
+                      }`}
+                    >
+                      <div className="flex flex-col items-center justify-center h-full">
+                        <div className="text-xs font-medium mb-1">{dayName}</div>
+                        <div className="text-lg font-bold">{dayNumber}</div>
+                        {isToday && !isSelected && (
+                          <div className="w-1 h-1 bg-blue-500 rounded-full mt-1"></div>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        {apt.status === "confirmed" && (
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent shadow-sm">
-                            <svg
-                              className="h-5 w-5 text-accent-foreground"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                              strokeWidth={3}
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Schedule Items */}
+          <div className="space-y-6">
+            {error ? (
+              <div className="text-center py-8">
+                <p className="text-red-500">Error: {error}</p>
+              </div>
+            ) : Object.keys(groupedItems).length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">No medication schedule found.</p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Visit a dermatologist to get your personalized medication schedule.
+                </p>
+              </div>
+            ) : (
+              Object.entries(groupedItems).map(([date, items]) => (
+                <div key={date} className="space-y-3">
+                  {/* Date Header */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-semibold text-foreground">
+                      {new Date(date).toLocaleDateString('en-US', { 
+                        month: 'short', 
+                        day: 'numeric',
+                        weekday: 'short'
+                      })}
+                    </span>
+                    <div className="flex-1 h-px bg-border"></div>
+                  </div>
+                  
+                  {/* Schedule Items for this date */}
+                  <div className="space-y-3 ml-4">
+                    {items.map((item) => (
+                      <Card 
+                        key={item.id} 
+                        className={`relative overflow-hidden shadow-md rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 cursor-pointer hover:shadow-lg transition-shadow ${
+                          item.imageCount > 0 ? 'opacity-75' : ''
+                        }`}
+                        onClick={() => setSelectedItem(item)}
+                      >
+                        {/* Image indicator */}
+                        {item.imageCount > 0 && (
+                          <div className="absolute left-0 top-0 h-full w-1.5 bg-green-500" />
+                        )}
+
+                        <div className="p-4">
+                          <div className="flex items-start gap-3">
+                            {/* Time and Status */}
+                            <div className="flex-shrink-0 text-center min-w-[60px]">
+                              <div className="text-sm font-semibold text-foreground">{item.time}</div>
+                              {item.imageCount > 0 ? (
+                                <CheckCircle className="h-5 w-5 text-green-500 mx-auto mt-1" />
+                              ) : (
+                                <div className="w-5 h-5 rounded-full border-2 border-gray-300 mx-auto mt-1" />
+                              )}
+                            </div>
+
+                            {/* Medicine Info */}
+                            <div className="flex-1">
+                              <h3 className="font-semibold text-foreground mb-1">{item.medicine}</h3>
+                              {item.tips && (
+                                <p className="text-sm text-muted-foreground">{item.tips}</p>
+                              )}
+                              {item.imageCount > 0 && (
+                                <div className="mt-2">
+                                  <span className="text-xs text-green-600 font-medium">✓ {item.imageCount} image{item.imageCount > 1 ? 's' : ''} uploaded</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Camera Icon */}
+                            {item.imageCount === 0 && (
+                              <div className="flex-shrink-0">
+                                <Camera className="h-5 w-5 text-muted-foreground" />
+                              </div>
+                            )}
                           </div>
-                        )}
-                        {/* Show menu only for upcoming appointments */}
-                        {!formattedApt.isPast && (
-                          <AppointmentMenu
-                            appointment={{
-                              id: apt.id,
-                              appointment_date: apt.appointment_date,
-                              appointment_time: apt.appointment_time,
-                              doctor: {
-                                name: formattedApt.doctor,
-                                specialty: formattedApt.specialty,
-                                location: apt.doctor?.location
-                              }
-                            }}
-                            onDeleted={() => {
-                              // Refresh both upcoming and past appointments
-                              refetchUpcoming()
-                              refetchPast()
-                            }}
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Detail Modal */}
+        {selectedItem && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+            <Card className="w-full max-w-md bg-white dark:bg-gray-800">
+              <div className="p-6">
+                <h3 className="text-xl font-bold mb-4">{selectedItem.medicine}</h3>
+                <div className="space-y-3 mb-6">
+                  <div>
+                    <span className="text-sm text-muted-foreground">Time: </span>
+                    <span className="font-medium">{selectedItem.time}</span>
+                  </div>
+                  <div>
+                    <span className="text-sm text-muted-foreground">Date: </span>
+                    <span className="font-medium">
+                      {new Date(selectedItem.date).toLocaleDateString()}
+                    </span>
+                  </div>
+                  {selectedItem.tips && (
+                    <div>
+                      <span className="text-sm text-muted-foreground">Instructions: </span>
+                      <p className="text-sm mt-1">{selectedItem.tips}</p>
+                    </div>
+                  )}
+                </div>
+
+                {selectedItem.imageCount > 0 ? (
+                  <div className="text-center py-4">
+                    <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-2" />
+                    <p className="text-green-600 font-medium">{selectedItem.imageCount} image{selectedItem.imageCount > 1 ? 's' : ''} uploaded!</p>
+                    <div className="mt-3 grid grid-cols-2 gap-2 max-w-xs mx-auto">
+                      {selectedItem.medicationImages.map((imageUrl, index) => (
+                        <div key={index} className="relative">
+                          <img 
+                            src={imageUrl} 
+                            alt={`Medication proof ${index + 1}`} 
+                            className="w-full h-20 object-cover rounded-lg border"
                           />
-                        )}
-                      </div>
+                          <div className="text-xs text-gray-500 mt-1 text-center">
+                            Image {index + 1}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-4 flex justify-center">
+                      <label className="cursor-pointer">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          className="hidden"
+                          disabled={uploading}
+                        />
+                        <div className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm">
+                          <Camera className="h-4 w-4" />
+                          {uploading ? 'Uploading...' : 'Add Another Photo'}
+                        </div>
+                      </label>
                     </div>
                   </div>
-                </Card>
-              )
-            })
-          )}
-        </div>
-      </div>
-      
-      <BottomNavigation />
+                ) : (
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground text-center">
+                      Upload an image to document this medication
+                    </p>
+                    <div className="flex justify-center">
+                      <label className="cursor-pointer">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          className="hidden"
+                          disabled={uploading}
+                        />
+                        <div className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+                          <Camera className="h-5 w-5" />
+                          {uploading ? 'Uploading...' : 'Take Photo'}
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-2 mt-6">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setSelectedItem(null)}
+                    className="flex-1"
+                  >
+                    Close
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          </div>
+        )}
+        
+        <BottomNavigation />
       </div>
     </WithAuth>
   )

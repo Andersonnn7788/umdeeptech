@@ -1,0 +1,19 @@
+lib/
+├── types/
+│   └── database.ts          ✅ TypeScript interfaces for all tables
+├── supabase/
+│   ├── client.ts
+│   ├── schema.sql          ✅ Tables
+│   └── database/
+│       ├── doctors.ts      ✅ Doctor CRUD operations
+│       └── appointments.ts ✅ Appointment CRUD operations
+└── hooks/
+    └── useAppointments.ts  ✅ React hooks for data fetching
+
+app/api/
+├── doctors/
+│   ├── route.ts           ✅ GET /api/doctors
+│   └── [id]/
+│       └── route.ts       ✅ GET /api/doctors/[id]
+└── appointments/
+    └── route.ts           ✅ GET & POST /api/appointments

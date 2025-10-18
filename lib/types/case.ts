@@ -25,6 +25,7 @@ export interface Case {
   image_url: string
   thumbnail_url?: string
   patient_description?: string
+  assigned_doctor_id?: string
   created_at: string
   updated_at: string
   submitted_for_review_at?: string

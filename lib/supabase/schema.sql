@@ -52,11 +52,13 @@ CREATE TABLE IF NOT EXISTS cases (
   image_url TEXT NOT NULL,
   thumbnail_url TEXT,
   patient_description TEXT,
+  assigned_doctor_id UUID,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   submitted_for_review_at TIMESTAMP WITH TIME ZONE,
   completed_at TIMESTAMP WITH TIME ZONE,
-  CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+  CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_assigned_doctor FOREIGN KEY (assigned_doctor_id) REFERENCES doctors(id) ON DELETE SET NULL
 );
 
 -- AI Analysis Results table
@@ -100,13 +102,14 @@ CREATE TABLE IF NOT EXISTS user_reports (
 );
 
 -- Indexes for better query performance
-CREATE INDEX idx_cases_user_id ON cases(user_id);
-CREATE INDEX idx_cases_status ON cases(status);
-CREATE INDEX idx_cases_created_at ON cases(created_at DESC);
-CREATE INDEX idx_analysis_results_case_id ON analysis_results(case_id);
-CREATE INDEX idx_dermatologist_reviews_case_id ON dermatologist_reviews(case_id);
-CREATE INDEX idx_dermatologist_reviews_dermatologist_id ON dermatologist_reviews(dermatologist_id);
-CREATE INDEX idx_user_reports_case_id ON user_reports(case_id);
+CREATE INDEX IF NOT EXISTS idx_cases_user_id ON cases(user_id);
+CREATE INDEX IF NOT EXISTS idx_cases_status ON cases(status);
+CREATE INDEX IF NOT EXISTS idx_cases_created_at ON cases(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_cases_assigned_doctor_id ON cases(assigned_doctor_id);
+CREATE INDEX IF NOT EXISTS idx_analysis_results_case_id ON analysis_results(case_id);
+CREATE INDEX IF NOT EXISTS idx_dermatologist_reviews_case_id ON dermatologist_reviews(case_id);
+CREATE INDEX IF NOT EXISTS idx_dermatologist_reviews_dermatologist_id ON dermatologist_reviews(dermatologist_id);
+CREATE INDEX IF NOT EXISTS idx_user_reports_case_id ON user_reports(case_id);
 
 -- Row Level Security (RLS) Policies
 

@@ -22,7 +22,14 @@ export async function GET(
         *,
         analysis_results (*),
         dermatologist_reviews (*),
-        user_reports (*)
+        user_reports (*),
+        assigned_doctor:doctors!assigned_doctor_id (
+          id,
+          name,
+          specialty,
+          title,
+          experience
+        )
       `)
       .eq('id', caseId)
       .eq('user_id', user.id)

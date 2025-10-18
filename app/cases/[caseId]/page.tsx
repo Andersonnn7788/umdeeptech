@@ -12,9 +12,17 @@ interface CaseData {
   image_url: string
   thumbnail_url: string
   patient_description?: string
+  assigned_doctor_id?: string
   created_at: string
   submitted_for_review_at?: string
   completed_at?: string
+  assigned_doctor?: Array<{
+    id: string
+    name: string
+    specialty: string
+    title: string
+    experience: string
+  }>
   analysis_results?: Array<{
     id: string
     ai_confidence_score: number
@@ -411,17 +419,67 @@ export default function CaseDetailsPage({ params }: { params: Promise<{ caseId: 
 
         {/* Pending Review Message */}
         {!review && caseData.status === 'submitted_for_review' && (
-          <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
-            <div className="w-16 h-16 bg-yellow-100 dark:bg-yellow-900 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-yellow-100 dark:bg-yellow-900 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold mb-2">Review Pending</h3>
+              <p className="text-gray-600 dark:text-gray-400">
+                Your case is in the queue for dermatologist review.<br />
+                We'll notify you once the review is complete.
+              </p>
             </div>
-            <h3 className="text-xl font-bold mb-2">Review Pending</h3>
-            <p className="text-gray-600 dark:text-gray-400">
-              Your case is in the queue for dermatologist review.<br />
-              We'll notify you once the review is complete.
-            </p>
+            
+            {/* Assigned Doctor Info */}
+            {caseData.assigned_doctor?.[0] && (
+              <div className="border-t border-gray-200 dark:border-gray-700 bg-blue-50 dark:bg-blue-950 p-6">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <h4 className="font-semibold text-lg">{caseData.assigned_doctor[0].name}</h4>
+                        <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">
+                          {caseData.assigned_doctor[0].title}
+                        </p>
+                      </div>
+                      <span className="px-3 py-1 bg-blue-600 text-white text-xs font-semibold rounded-full">
+                        Assigned
+                      </span>
+                    </div>
+                    <div className="space-y-2 mt-3">
+                      <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                        <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span><strong>Specialty:</strong> {caseData.assigned_doctor[0].specialty}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                        <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>{caseData.assigned_doctor[0].experience}</span>
+                      </div>
+                    </div>
+                    <div className="mt-4 p-3 bg-white dark:bg-gray-900 rounded-lg">
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        <svg className="w-4 h-4 inline mr-1 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                        AI matched based on your detected conditions
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

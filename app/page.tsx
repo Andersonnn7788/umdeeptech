@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import BottomNavigation from '@/components/BottomNavigation'
+import Image from 'next/image'
 
 export default function Home() {
   const router = useRouter()
@@ -20,18 +21,18 @@ export default function Home() {
 
       {/* Main Content - Centered */}
       <main className="flex-1 flex flex-col items-center justify-center px-6 pb-20">
-        <div className="w-full max-w-md space-y-8 text-center">
-          {/* Logo and Brand Name - Centered */}
-          <div className="flex flex-col items-center justify-center gap-4 mb-8">
-            <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center shadow-2xl">
-              <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              SkinLife
-            </h1>
-          </div>
+        <div className="w-full max-w-md space-y-2 text-center">
+        <div className="flex flex-col items-center justify-center">
+  <Image 
+    src="/skinlife-logo.png" 
+    alt="SkinLife Logo" 
+    width={400} 
+    height={400}
+    priority
+    className="w-80 h-80 md:w-[28rem] md:h-[28rem] object-contain"
+  />
+</div>
+
 
           {/* CTA Buttons */}
           <div className="space-y-4">

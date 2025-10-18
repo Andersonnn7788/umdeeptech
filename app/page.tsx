@@ -52,10 +52,10 @@ export default function Home() {
               </svg>
             </button>
             <button
-              onClick={() => router.push('/skin-analysis')}
+              onClick={() => router.push('/cases')}
               className="w-full px-8 py-4 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-white border-2 border-gray-200 dark:border-gray-600 rounded-2xl font-semibold text-lg transition-all shadow-md hover:shadow-lg"
             >
-              Learn More
+              Case Review
             </button>
           </div>
         </div>

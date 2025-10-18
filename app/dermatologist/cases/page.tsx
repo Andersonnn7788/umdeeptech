@@ -9,6 +9,7 @@ import { Home, Calendar, MessageSquare, User } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import DoctorChatbot from '@/components/DoctorChatbot'
+import { supabase } from '@/lib/supabase/client'
 
 interface Case {
   id: string
@@ -316,8 +317,62 @@ function ReviewModal({ caseData, onClose, onSubmit }: ReviewModalProps) {
   const [submissionResult, setSubmissionResult] = useState<{
     pdfGeneratedAt: string | null
     status: 'approved' | 'requires_resubmission'
+    pdfUrl?: string | null
   } | null>(null)
   const router = useRouter()
+
+  // Load AI analysis from Supabase directly for the selected case
+  type DetectedCondition = { name: string; confidence: number; description?: string }
+  interface AnalysisResult {
+    ai_confidence_score?: number | string
+    detected_conditions?: DetectedCondition[]
+    severity?: string
+    recommendations?: string
+  }
+  const [fetchedAnalysis, setFetchedAnalysis] = useState<AnalysisResult | null>(null)
+  const [isAnalysisLoading, setIsAnalysisLoading] = useState<boolean>(false)
+  const [analysisError, setAnalysisError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let isMounted = true
+    const loadAnalysis = async () => {
+      setIsAnalysisLoading(true)
+      setAnalysisError(null)
+      try {
+        // Use server API which validates access and reads with service role
+        const res = await fetch(`/api/cases/${caseData.id}`)
+        if (!res.ok) {
+          const payload = await res.json().catch(() => null)
+          throw new Error(payload?.error || 'Failed to load case analysis')
+        }
+        const payload = await res.json()
+        if (!isMounted) return
+
+        const first = payload?.case?.analysis_results?.[0]
+        if (first) {
+          const normalized: AnalysisResult = {
+            ai_confidence_score:
+              typeof first.ai_confidence_score === 'string'
+                ? parseFloat(first.ai_confidence_score as unknown as string)
+                : first.ai_confidence_score,
+            detected_conditions: (first.detected_conditions as any) || [],
+            severity: first.severity,
+            recommendations: first.recommendations,
+          }
+          setFetchedAnalysis(normalized)
+        } else {
+          setFetchedAnalysis(null)
+        }
+      } catch (err: any) {
+        setAnalysisError(err?.message || 'Failed to load AI analysis')
+      } finally {
+        if (isMounted) setIsAnalysisLoading(false)
+      }
+    }
+
+    loadAnalysis()
+    return () => { isMounted = false }
+  }, [caseData.id])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -366,6 +421,7 @@ function ReviewModal({ caseData, onClose, onSubmit }: ReviewModalProps) {
               ? data.report.pdfGeneratedAt
               : null,
           status,
+          pdfUrl: typeof data?.report?.pdfUrl === 'string' ? data.report.pdfUrl : null,
         })
 
         onSubmit()
@@ -445,6 +501,16 @@ function ReviewModal({ caseData, onClose, onSubmit }: ReviewModalProps) {
                   <div className="flex-1 px-6 py-3 bg-blue-50 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-xl border border-blue-200 dark:border-blue-700 text-center text-sm font-medium">
                     A secure PDF has been sent to the patient and is available in their case view.
                   </div>
+                  {submissionResult.pdfUrl && (
+                    <a
+                      href={submissionResult.pdfUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors text-center"
+                    >
+                      Download PDF
+                    </a>
+                  )}
                   <button
                     type="button"
                     onClick={() => {
@@ -603,6 +669,45 @@ function ReviewModal({ caseData, onClose, onSubmit }: ReviewModalProps) {
                     <option value="high">High</option>
                     <option value="urgent">Urgent</option>
                   </select>
+                </div>
+
+                {/* AI Analysis (fetched) */}
+                <div>
+                  <label className="block font-semibold mb-2">AI Analysis</label>
+                  <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-xl border border-blue-200 dark:border-blue-800">
+                    {isAnalysisLoading ? (
+                      <div className="text-sm text-blue-800 dark:text-blue-200">Loading AI analysis...</div>
+                    ) : analysisError ? (
+                      <div className="text-sm text-red-700 dark:text-red-300">{analysisError}</div>
+                    ) : fetchedAnalysis ? (
+                      <div className="space-y-2 text-sm">
+                        {typeof fetchedAnalysis.ai_confidence_score !== 'undefined' && (
+                          <p><strong>Confidence:</strong> {Number(fetchedAnalysis.ai_confidence_score).toFixed(0)}%</p>
+                        )}
+                        {fetchedAnalysis.severity && (
+                          <p><strong>Severity:</strong> {fetchedAnalysis.severity}</p>
+                        )}
+                        {fetchedAnalysis.detected_conditions && fetchedAnalysis.detected_conditions.length > 0 && (
+                          <div>
+                            <strong>Detected Conditions:</strong>
+                            <ul className="list-disc list-inside ml-2 mt-1">
+                              {fetchedAnalysis.detected_conditions.map((condition, idx) => (
+                                <li key={idx}>{condition.name} {typeof condition.confidence !== 'undefined' ? `(${condition.confidence}%)` : ''}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {fetchedAnalysis.recommendations && (
+                          <p><strong>AI Recommendations:</strong> {fetchedAnalysis.recommendations}</p>
+                        )}
+                        {!fetchedAnalysis.ai_confidence_score && !fetchedAnalysis.severity && (!fetchedAnalysis.detected_conditions || fetchedAnalysis.detected_conditions.length === 0) && !fetchedAnalysis.recommendations && (
+                          <p className="text-sm text-gray-600 dark:text-gray-300">No AI analysis available for this case.</p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-600 dark:text-gray-300">No AI analysis available for this case.</div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Agrees with AI */}

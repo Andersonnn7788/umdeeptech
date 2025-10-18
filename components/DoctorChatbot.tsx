@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 interface Message {
   role: 'user' | 'assistant'
   content: string
+  reportUrl?: string | null
 }
 
 interface DoctorChatbotProps {
@@ -40,6 +41,19 @@ export default function DoctorChatbot({ isOpen, onClose }: DoctorChatbotProps) {
     }
   }, [isOpen])
 
+  // On open, trigger background sync of doctor's review cases into vector store
+  useEffect(() => {
+    const syncDocs = async () => {
+      try {
+        if (!isOpen) return
+        await fetch('/api/chatbot/sync', { method: 'POST' })
+      } catch (err) {
+        console.warn('RAG sync failed (non-blocking):', err)
+      }
+    }
+    syncDocs()
+  }, [isOpen])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim() || isLoading) return
@@ -65,7 +79,7 @@ export default function DoctorChatbot({ isOpen, onClose }: DoctorChatbotProps) {
       }
 
       const data = await response.json()
-      setMessages(prev => [...prev, { role: 'assistant', content: data.message }])
+      setMessages(prev => [...prev, { role: 'assistant', content: data.message, reportUrl: data.reportUrl ?? null }])
     } catch (error) {
       console.error('Error:', error)
       setMessages(prev => [...prev, { 
@@ -123,6 +137,18 @@ export default function DoctorChatbot({ isOpen, onClose }: DoctorChatbotProps) {
                 }`}
               >
                 <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                {message.role === 'assistant' && message.reportUrl && (
+                  <div className="mt-3">
+                    <a
+                      href={message.reportUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center text-sm font-medium text-blue-600 hover:text-blue-700 underline"
+                    >
+                      View Patient Health Report (PDF)
+                    </a>
+                  </div>
+                )}
               </div>
             </div>
           ))}

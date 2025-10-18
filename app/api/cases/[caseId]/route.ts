@@ -9,6 +9,7 @@ export async function GET(
   try {
     const { caseId } = await context.params
     const supabase = await createClient()
+    const admin = createAdminClient()
 
     // Check authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -16,39 +17,46 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get the case with related data
-    const { data: caseData, error: caseError } = await supabase
+    // First fetch base case to avoid relational SELECT causing empty rows
+    const { data: baseCase, error: baseError } = await admin
       .from('cases')
-      .select(`
-        *,
-        analysis_results (*),
-        dermatologist_reviews (
-          *,
-          dermatologist:doctors!dermatologist_id (
-            id,
-            name,
-            specialty,
-            title
-          )
-        ),
-        user_reports (*),
-        assigned_doctor:doctors!assigned_doctor_id (
-          id,
-          name,
-          specialty,
-          title,
-          experience
-        )
-      `)
+      .select('*')
       .eq('id', caseId)
-      .eq('user_id', user.id)
       .single()
 
-    if (caseError || !caseData) {
+    if (baseError || !baseCase) {
       return NextResponse.json({ error: 'Case not found' }, { status: 404 })
     }
 
-    const admin = createAdminClient()
+    const isOwner = baseCase.user_id === user.id
+    const isAssignedDoctor = baseCase.assigned_doctor_id === user.id
+    if (!isOwner && !isAssignedDoctor) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
+    // Load related tables separately
+    const [analysisRes, reviewsRes, reportsRes, doctorRes] = await Promise.all([
+      admin.from('analysis_results').select('*').eq('case_id', caseId),
+      admin
+        .from('dermatologist_reviews')
+        .select(`*, dermatologist:doctors!dermatologist_id (id, name, specialty, title)`) 
+        .eq('case_id', caseId),
+      admin.from('user_reports').select('*').eq('case_id', caseId),
+      baseCase.assigned_doctor_id
+        ? admin
+            .from('doctors')
+            .select('id, name, specialty, title, experience')
+            .eq('id', baseCase.assigned_doctor_id)
+        : Promise.resolve({ data: null } as any),
+    ])
+
+    const caseData: any = {
+      ...baseCase,
+      analysis_results: analysisRes.data ?? [],
+      dermatologist_reviews: reviewsRes.data ?? [],
+      user_reports: reportsRes.data ?? [],
+      assigned_doctor: doctorRes?.data ?? null,
+    }
 
     if (Array.isArray(caseData.user_reports) && caseData.user_reports.length > 0) {
       for (const report of caseData.user_reports) {

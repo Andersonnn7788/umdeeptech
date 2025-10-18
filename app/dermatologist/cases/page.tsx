@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import { useAuth } from '@/lib/hooks/useAuth'
-import { Home, Calendar, Heart, User } from 'lucide-react'
+import { Home, Calendar, MessageSquare, User } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import DoctorChatbot from '@/components/DoctorChatbot'
 
 interface Case {
   id: string
@@ -40,6 +41,7 @@ export default function DermatologistCasesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedCase, setSelectedCase] = useState<Case | null>(null)
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false)
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -236,34 +238,62 @@ export default function DermatologistCasesPage() {
         <div className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 pb-safe">
           <div className="flex items-center justify-around px-4 py-3 max-w-md mx-auto">
             {[
-              { href: "/dermatologist", icon: Home, label: "Home", isActive: false, clickable: true },
-              { href: "/dermatologist/appointments", icon: Calendar, label: "Appointments", isActive: false, clickable: true },
-              { href: "#", icon: Heart, label: "Health", isActive: false, clickable: false },
-              { href: "/dermatologist/profile", icon: User, label: "Profile", isActive: false, clickable: true }
-            ].map((item) => (
-              <Link 
-                key={item.href} 
-                href={item.clickable ? item.href : "#"}
-                className={`flex flex-col items-center gap-1 flex-1 ${!item.clickable ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`}
-              >
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={!item.clickable}
-                  className={`flex flex-col items-center gap-1 h-auto py-2 px-3 ${
-                    item.isActive 
-                      ? "text-blue-600 dark:text-blue-400" 
-                      : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-                  }`}
+              { href: "/dermatologist", icon: Home, label: "Home", isActive: false, clickable: true, onClick: null },
+              { href: "/dermatologist/appointments", icon: Calendar, label: "Appointments", isActive: false, clickable: true, onClick: null },
+              { href: "#", icon: MessageSquare, label: "Chatbot", isActive: false, clickable: true, onClick: () => setIsChatbotOpen(true) },
+              { href: "/dermatologist/profile", icon: User, label: "Profile", isActive: false, clickable: true, onClick: null }
+            ].map((item) => {
+              if (item.onClick) {
+                return (
+                  <button
+                    key={item.href}
+                    onClick={item.onClick}
+                    className="flex flex-col items-center gap-1 flex-1"
+                  >
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={`flex flex-col items-center gap-1 h-auto py-2 px-3 ${
+                        item.isActive 
+                          ? "text-blue-600 dark:text-blue-400" 
+                          : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                      }`}
+                    >
+                      <item.icon className="h-6 w-6" />
+                      <span className="text-xs font-medium">{item.label}</span>
+                    </Button>
+                  </button>
+                )
+              }
+              
+              return (
+                <Link 
+                  key={item.href} 
+                  href={item.clickable ? item.href : "#"}
+                  className={`flex flex-col items-center gap-1 flex-1 ${!item.clickable ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`}
                 >
-                  <item.icon className="h-6 w-6" />
-                  <span className="text-xs font-medium">{item.label}</span>
-                </Button>
-              </Link>
-            ))}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={!item.clickable}
+                    className={`flex flex-col items-center gap-1 h-auto py-2 px-3 ${
+                      item.isActive 
+                        ? "text-blue-600 dark:text-blue-400" 
+                        : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                    }`}
+                  >
+                    <item.icon className="h-6 w-6" />
+                    <span className="text-xs font-medium">{item.label}</span>
+                  </Button>
+                </Link>
+              )
+            })}
           </div>
         </div>
       </div>
+
+      {/* Chatbot Modal */}
+      <DoctorChatbot isOpen={isChatbotOpen} onClose={() => setIsChatbotOpen(false)} />
     </div>
   )
 }

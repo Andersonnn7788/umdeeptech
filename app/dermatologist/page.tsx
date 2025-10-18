@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { useAuth } from '@/lib/hooks/useAuth'
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 export default function DermatologistDashboard() {
   const router = useRouter()
   const { user, loading } = useAuth()
+  const [profileChecked, setProfileChecked] = useState(false)
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -20,7 +21,32 @@ export default function DermatologistDashboard() {
     }
   }, [user, loading, router])
 
-  if (loading) {
+  // Check if doctor has completed their profile
+  useEffect(() => {
+    const checkDoctorProfile = async () => {
+      if (!user) return
+
+      try {
+        const response = await fetch(`/api/doctors/${user.id}`)
+        if (!response.ok) {
+          // Doctor profile doesn't exist, redirect to setup
+          router.push('/auth/doctor-setup')
+          return
+        }
+        setProfileChecked(true)
+      } catch (error) {
+        console.error('Failed to check doctor profile:', error)
+        // On error, allow them to proceed (they can fix it later via profile page)
+        setProfileChecked(true)
+      }
+    }
+
+    if (user) {
+      checkDoctorProfile()
+    }
+  }, [user, router])
+
+  if (loading || !profileChecked) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner size="lg" text="Loading..." />

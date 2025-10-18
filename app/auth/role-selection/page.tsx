@@ -80,9 +80,10 @@ export default function RoleSelectionPage() {
         throw new Error(result.error || 'Failed to save role')
       }
 
-      // Redirect to appropriate dashboard
-      const dashboardUrl = selectedRole === 'doctor' ? '/dermatologist' : '/appointments'
-      router.push(dashboardUrl)
+      // Redirect to appropriate page
+      // Doctors need to complete their profile setup first
+      const redirectUrl = selectedRole === 'doctor' ? '/auth/doctor-setup' : '/appointments'
+      router.push(redirectUrl)
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save role')

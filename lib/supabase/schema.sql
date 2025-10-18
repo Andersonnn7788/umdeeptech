@@ -394,6 +394,14 @@ ALTER TABLE appointments ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Doctors are viewable by everyone" ON doctors
     FOR SELECT USING (true);
 
+-- Allow doctors to insert their own profile
+CREATE POLICY "Doctors can create own profile" ON doctors
+    FOR INSERT WITH CHECK (auth.uid()::text = id::text);
+
+-- Allow doctors to update their own profile
+CREATE POLICY "Doctors can update own profile" ON doctors
+    FOR UPDATE USING (auth.uid()::text = id::text);
+
 -- Allow patients to see their own data
 CREATE POLICY "Patients can view own data" ON patients
     FOR SELECT USING (auth.uid()::text = id::text OR id::text = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee');

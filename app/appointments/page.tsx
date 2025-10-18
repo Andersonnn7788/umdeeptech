@@ -191,7 +191,6 @@ export default function AppointmentsPage() {
                               id: apt.id,
                               appointment_date: apt.appointment_date,
                               appointment_time: apt.appointment_time,
-                              calendar_event_id: apt.calendar_event_id,
                               doctor: {
                                 name: formattedApt.doctor,
                                 specialty: formattedApt.specialty,

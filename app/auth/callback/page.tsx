@@ -21,16 +21,8 @@ export default function AuthCallback() {
         }
 
         if (data.session) {
-          // Check if user signed in with Google OAuth
-          const provider = data.session.user.app_metadata?.provider
-          
-          if (provider === 'google') {
-            setStatus('Google Calendar connected successfully!')
-            // Since user signed in with Google OAuth and we requested calendar scope,
-            // they automatically have calendar access - no additional setup needed
-          }
-          
           // User is authenticated, redirect to home
+          setStatus('Authentication successful!')
           setTimeout(() => router.push('/'), 1000)
         } else {
           // No session, redirect to login

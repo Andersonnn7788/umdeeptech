@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import LoadingSpinner from '@/components/LoadingSpinner'
+import { WithAuth } from '@/components/WithAuth'
 
 interface Case {
   id: string

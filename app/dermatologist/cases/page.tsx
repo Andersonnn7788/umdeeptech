@@ -70,7 +70,13 @@ export default function DermatologistCasesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedCase, setSelectedCase] = useState<Case | null>(null)
+  const [selectedFollowUpCase, setSelectedFollowUpCase] = useState<Case | null>(null)
   const [isChatbotOpen, setIsChatbotOpen] = useState(false)
+
+  // Helper function to check if a case is marked as completed
+  const isCaseCompleted = (caseId: string) => {
+    return localStorage.getItem(`case_${caseId}_completed`) === 'true'
+  }
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -181,8 +187,19 @@ export default function DermatologistCasesPage() {
             {cases.map((caseItem) => (
               <div
                 key={caseItem.id}
-                className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => setSelectedCase(caseItem)}
+                className={`bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden transition-shadow ${
+                  isCaseCompleted(caseItem.id) ? 'opacity-60 cursor-not-allowed' : 'hover:shadow-lg cursor-pointer'
+                }`}
+                onClick={() => {
+                  if (isCaseCompleted(caseItem.id)) {
+                    return // Don't allow clicking on completed cases
+                  }
+                  if (caseItem.status === 'approved') {
+                    setSelectedFollowUpCase(caseItem)
+                  } else {
+                    setSelectedCase(caseItem)
+                  }
+                }}
               >
                 <div className="p-4 space-y-4">
                   <div className="flex items-start justify-between">
@@ -241,8 +258,18 @@ export default function DermatologistCasesPage() {
                     </>
                   )}
 
-                  <button className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
-                    Review Case
+                  <button 
+                    className={`w-full px-4 py-2 rounded-lg font-medium transition-colors ${
+                      isCaseCompleted(caseItem.id) 
+                        ? 'bg-green-600 text-white cursor-not-allowed' 
+                        : 'bg-blue-600 hover:bg-blue-700 text-white'
+                    }`}
+                    disabled={isCaseCompleted(caseItem.id)}
+                  >
+                    {isCaseCompleted(caseItem.id) 
+                      ? 'Completed ✓' 
+                      : (caseItem.status === 'approved' ? 'Follow Up' : 'Review Case')
+                    }
                   </button>
                 </div>
               </div>
@@ -258,6 +285,18 @@ export default function DermatologistCasesPage() {
           onClose={() => setSelectedCase(null)}
           onSubmit={() => {
             fetchCases()
+          }}
+        />
+      )}
+
+      {/* Follow Up Modal */}
+      {selectedFollowUpCase && (
+        <FollowUpModal
+          caseData={selectedFollowUpCase}
+          onClose={() => setSelectedFollowUpCase(null)}
+          onSubmit={() => {
+            fetchCases()
+            setSelectedFollowUpCase(null)
           }}
         />
       )}
@@ -378,16 +417,20 @@ REQUIREMENTS:
 OUTPUT FORMAT: Return ONLY a valid JSON array with this exact structure:
 [
   {
+    "schedule_id": "001",
     "date": "2025-10-20",
     "time": "08:00",
     "medicine": "Hydrocortisone 1% cream",
     "tips": "Apply thin layer to affected area after cleansing",
+    "completed": false
   },
   {
+    "schedule_id": "002",
     "date": "2025-10-20",
     "time": "20:00", 
     "medicine": "Hydrocortisone 1% cream",
     "tips": "Apply before bedtime, avoid covering with tight clothing",
+    "completed": false
   }
 ]
 
@@ -426,8 +469,9 @@ Generate multiple entries for each medication according to doctor's instruction 
         if (Array.isArray(scheduleData) && scheduleData.length > 0) {
           // Validate that each item has the required fields
           const validSchedule = scheduleData.filter(item => 
-            item.date && item.time && item.medicine
+            item.date && item.time && item.medicine && item.schedule_id
           ).map(item => ({
+            schedule_id: item.schedule_id,
             date: item.date,
             time: item.time,
             medicine: item.medicine,
@@ -634,14 +678,26 @@ Generate multiple entries for each medication according to doctor's instruction 
                 </div>
               )}
 
-              {/* Image */}
-              <div className="relative w-full max-w-md mx-auto aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700">
-                <Image
-                  src={caseData.image_url}
-                  alt="Case image"
-                  fill
-                  className="object-cover"
-                />
+              {/* Image Link */}
+              <div className="w-full max-w-md mx-auto p-6 bg-gray-50 dark:bg-gray-700 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600">
+                <div className="text-center">
+                  <svg className="w-12 h-12 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Case Image</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Click the link below to view the patient's uploaded image</p>
+                  <a
+                    href={caseData.image_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    View Image
+                  </a>
+                </div>
               </div>
 
               {/* Patient Description */}
@@ -1041,6 +1097,192 @@ Generate multiple entries for each medication according to doctor's instruction 
               </form>
             </div>
             )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+interface FollowUpModalProps {
+  caseData: Case
+  onClose: () => void
+  onSubmit: () => void
+}
+
+function FollowUpModal({ caseData, onClose, onSubmit }: FollowUpModalProps) {
+  const [medicationImages, setMedicationImages] = useState<string[]>([])
+  const [loading, setLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Fetch medication images for this case
+  useEffect(() => {
+    const fetchMedicationImages = async () => {
+      try {
+        setLoading(true)
+        const response = await fetch(`/api/dermatologist/cases/${caseData.id}/images`)
+        if (!response.ok) {
+          throw new Error('Failed to fetch medication images')
+        }
+        const data = await response.json()
+        setMedicationImages(data.images || [])
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load images')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchMedicationImages()
+  }, [caseData.id])
+
+  const handleApprove = async () => {
+    setIsSubmitting(true)
+    setError(null)
+
+    try {
+      // Just mark as completed in UI without updating database status
+      // You could optionally store completion in localStorage or state management
+      localStorage.setItem(`case_${caseData.id}_completed`, 'true')
+      
+      // Simulate a brief delay for better UX
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      onSubmit()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20">
+        {/* Backdrop */}
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+          onClick={onClose}
+        />
+
+        {/* Modal */}
+        <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+            <h2 className="text-2xl font-bold">Follow Up - Medication Progress</h2>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="overflow-y-auto max-h-[calc(90vh-140px)] p-6">
+            {/* Patient Info */}
+            <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 mb-6">
+              <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 flex items-center justify-center">
+                <User className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 font-semibold">
+                  Patient
+                </p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                  {caseData.patient?.name || 'Patient'}
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Case ID: {caseData.id.slice(0, 8)}...
+                </p>
+              </div>
+            </div>
+
+            {/* Error Message */}
+            {error && (
+              <div className="mb-6 p-4 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-xl">
+                <p className="text-red-700 dark:text-red-300">{error}</p>
+              </div>
+            )}
+
+            {/* Medication Images */}
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold mb-4">Patient Medication Progress Images</h3>
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <span className="ml-2">Loading images...</span>
+                </div>
+              ) : medicationImages.length > 0 ? (
+                <div className="space-y-3">
+                  {medicationImages.map((imageUrl, index) => (
+                    <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                      <div className="flex-shrink-0">
+                        <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          Medication Progress Image {index + 1}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {imageUrl.split('/').pop()?.split('?')[0] || 'medication-image'}
+                        </p>
+                      </div>
+                      <a
+                        href={imageUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-shrink-0 inline-flex items-center gap-1 px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                        View
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  <p>No medication images uploaded yet.</p>
+                  <p className="text-sm mt-1">Patient hasn't started medication schedule.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-4">
+              <button
+                onClick={onClose}
+                className="flex-1 px-6 py-3 border border-gray-300 dark:border-gray-600 rounded-xl font-semibold hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                Close
+              </button>
+              <button
+                onClick={handleApprove}
+                disabled={isSubmitting}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                {isSubmitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                    Approving...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Mark as Complete
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>

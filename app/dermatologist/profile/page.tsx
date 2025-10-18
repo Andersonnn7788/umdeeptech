@@ -88,14 +88,6 @@ export default function DermatologistProfile() {
       onClick: null
     },
     {
-      href: "/dermatologist/appointments",
-      icon: Calendar,
-      label: "Appointments",
-      isActive: false,
-      clickable: true,
-      onClick: null
-    },
-    {
       href: "#",
       icon: MessageSquare,
       label: "Chatbot",
@@ -120,8 +112,8 @@ export default function DermatologistProfile() {
         <div className="w-full max-w-md">
           {/* Profile Header */}
           <div className="text-center mb-8">
-            <div className="w-24 h-24 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-xl">
-              <User className="w-12 h-12 text-white" />
+            <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 mt-8 shadow-xl">
+              <User className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-3xl font-bold mb-2">Doctor Profile</h1>
             <p className="text-gray-600 dark:text-gray-400">
@@ -238,24 +230,20 @@ export default function DermatologistProfile() {
             {navItems.map((item) => {
               if (item.onClick) {
                 return (
-                  <button
+                  <Button
                     key={item.href}
                     onClick={item.onClick}
-                    className="flex flex-col items-center gap-1 flex-1"
+                    variant="ghost"
+                    size="sm"
+                    className={`flex flex-col items-center gap-1 h-auto py-2 px-3 flex-1 ${
+                      item.isActive 
+                        ? "text-blue-600 dark:text-blue-400" 
+                        : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                    }`}
                   >
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className={`flex flex-col items-center gap-1 h-auto py-2 px-3 ${
-                        item.isActive 
-                          ? "text-blue-600 dark:text-blue-400" 
-                          : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-                      }`}
-                    >
-                      <item.icon className="h-6 w-6" />
-                      <span className="text-xs font-medium">{item.label}</span>
-                    </Button>
-                  </button>
+                    <item.icon className="h-6 w-6" />
+                    <span className="text-xs font-medium">{item.label}</span>
+                  </Button>
                 )
               }
               

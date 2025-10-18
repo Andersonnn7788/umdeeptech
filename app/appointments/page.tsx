@@ -13,6 +13,7 @@ import LoadingSpinner from '@/components/LoadingSpinner'
 
 interface ScheduleItem {
   id: string
+  schedule_id: string | number
   date: string
   time: string
   medicine: string
@@ -22,6 +23,7 @@ interface ScheduleItem {
   caseStatus: string
   medicationImages: string[] // Array of image URLs
   imageCount: number
+  completed: boolean // Whether this specific schedule item is completed
 }
 
 interface Case {
@@ -61,6 +63,8 @@ export default function MedicationSchedulePage() {
       const data = await response.json()
       console.log('Schedule data received:', data)
       console.log('Number of schedule items:', data.schedule?.length || 0)
+      
+      
       setScheduleItems(data.schedule || [])
     } catch (err) {
       console.error('Error fetching schedule:', err)
@@ -97,17 +101,34 @@ export default function MedicationSchedulePage() {
       return
     }
 
-    console.log('Starting image upload for case:', {
+    console.log('Starting image upload for schedule item:', {
       caseId: selectedItem.caseId,
-      medicine: selectedItem.medicine
+      scheduleId: selectedItem.schedule_id,
+      medicine: selectedItem.medicine,
+      fullSelectedItem: selectedItem
     })
+    
+    console.log('selectedItem.schedule_id type:', typeof selectedItem.schedule_id)
+    console.log('selectedItem.schedule_id value:', JSON.stringify(selectedItem.schedule_id))
+    
+    // Check what we're about to send in FormData
+    const scheduleIdToSend = String(selectedItem.schedule_id)
+    console.log('scheduleId converted to string:', scheduleIdToSend)
+    console.log('scheduleId converted type:', typeof scheduleIdToSend)
     
     setUploading(true)
     try {
       const formData = new FormData()
       formData.append('image', file)
       formData.append('caseId', selectedItem.caseId)
+      
+      const scheduleIdToAppend = String(selectedItem.schedule_id)
+      console.log('About to append scheduleId to FormData:', scheduleIdToAppend)
+      formData.append('scheduleId', scheduleIdToAppend)
 
+      // Verify what was actually added to FormData
+      console.log('FormData scheduleId after append:', formData.get('scheduleId'))
+      
       console.log('Sending upload request...')
       const response = await fetch('/api/users/schedule/upload', {
         method: 'POST',
@@ -236,12 +257,14 @@ export default function MedicationSchedulePage() {
                       <Card 
                         key={item.id} 
                         className={`relative overflow-hidden shadow-md rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 cursor-pointer hover:shadow-lg transition-shadow ${
-                          item.imageCount > 0 ? 'opacity-75' : ''
+                          item.completed ? 'opacity-75' : ''
                         }`}
-                        onClick={() => setSelectedItem(item)}
+                        onClick={() => {
+                          setSelectedItem(item)
+                        }}
                       >
                         {/* Image indicator */}
-                        {item.imageCount > 0 && (
+                        {item.completed && (
                           <div className="absolute left-0 top-0 h-full w-1.5 bg-green-500" />
                         )}
 
@@ -250,7 +273,7 @@ export default function MedicationSchedulePage() {
                             {/* Time and Status */}
                             <div className="flex-shrink-0 text-center min-w-[60px]">
                               <div className="text-sm font-semibold text-foreground">{item.time}</div>
-                              {item.imageCount > 0 ? (
+                              {item.completed ? (
                                 <CheckCircle className="h-5 w-5 text-green-500 mx-auto mt-1" />
                               ) : (
                                 <div className="w-5 h-5 rounded-full border-2 border-gray-300 mx-auto mt-1" />
@@ -263,15 +286,10 @@ export default function MedicationSchedulePage() {
                               {item.tips && (
                                 <p className="text-sm text-muted-foreground">{item.tips}</p>
                               )}
-                              {item.imageCount > 0 && (
-                                <div className="mt-2">
-                                  <span className="text-xs text-green-600 font-medium">✓ {item.imageCount} image{item.imageCount > 1 ? 's' : ''} uploaded</span>
-                                </div>
-                              )}
                             </div>
 
                             {/* Camera Icon */}
-                            {item.imageCount === 0 && (
+                            {!item.completed && (
                               <div className="flex-shrink-0">
                                 <Camera className="h-5 w-5 text-muted-foreground" />
                               </div>
@@ -312,7 +330,7 @@ export default function MedicationSchedulePage() {
                   )}
                 </div>
 
-                {selectedItem.imageCount > 0 ? (
+                {selectedItem.completed ? (
                   <div className="text-center py-4">
                     <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-2" />
                     <p className="text-green-600 font-medium">{selectedItem.imageCount} image{selectedItem.imageCount > 1 ? 's' : ''} uploaded!</p>

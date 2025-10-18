@@ -51,25 +51,28 @@ export async function GET(request: NextRequest) {
         
         if (caseItem.dermatologist_reviews && caseItem.dermatologist_reviews.length > 0) {
           const review = caseItem.dermatologist_reviews[0]
-          console.log('Review schedule:', review.schedule ? 'exists' : 'null')
-
           if (review.schedule && Array.isArray(review.schedule)) {
-            // Get all medication images for this case (simple array of URLs)
+            // Get all medication images for this case
             const medicationImages = review.medication_images || []
-       
+            
             review.schedule.forEach((item: any, index: number) => {
               const scheduleItemId = `${caseItem.id}-${item.date}-${item.time}-${item.medicine}`
-
               
-              allScheduleItems.push({
+              // Individual completion status from schedule item
+              const isCompleted = item.completed || false
+              
+              const scheduleItem = {
                 ...item,
                 id: scheduleItemId,
                 caseId: caseItem.id,  // Include the actual case ID
                 reviewId: review.id,   // Include the review ID
                 caseStatus: caseItem.status,
-                medicationImages: medicationImages, // All images for the case
-                imageCount: medicationImages.length // Total images for the case
-              })
+                medicationImages: medicationImages, // All case images (for display in modal)
+                imageCount: medicationImages.length, // Total case images
+                completed: isCompleted // Whether this specific schedule item is completed
+              }
+              
+              allScheduleItems.push(scheduleItem)
             })
           }
         }

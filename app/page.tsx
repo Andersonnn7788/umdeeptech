@@ -3,19 +3,31 @@
 import { useRouter } from 'next/navigation'
 import BottomNavigation from '@/components/BottomNavigation'
 import Image from 'next/image'
+import { useAuth } from '@/lib/hooks/useAuth'
 
 export default function Home() {
   const router = useRouter()
+  const { user, loading } = useAuth()
+
+  const handleDoctorClick = () => {
+    if (!user) {
+      // Redirect to login with return URL
+      router.push('/auth/login?redirect=/dermatologist')
+    } else {
+      router.push('/dermatologist')
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-blue-50 dark:from-gray-900 dark:via-blue-950 dark:to-gray-900 flex flex-col">
       {/* Header */}
       <header className="w-full px-4 py-4 flex justify-end items-center">
         <button
-          onClick={() => router.push('/dermatologist/cases')}
-          className="px-4 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-2 border-gray-200 dark:border-gray-600 rounded-lg font-medium text-sm hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-blue-500 dark:hover:border-blue-500 transition-all shadow-sm hover:shadow-md"
+          onClick={handleDoctorClick}
+          disabled={loading}
+          className="px-4 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-2 border-gray-200 dark:border-gray-600 rounded-lg font-medium text-sm hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-blue-500 dark:hover:border-blue-500 transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Doctor
+          {loading ? 'Loading...' : 'Doctor'}
         </button>
       </header>
 

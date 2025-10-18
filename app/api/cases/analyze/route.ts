@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import OpenAI from 'openai'
 
 const openai = new OpenAI({
@@ -9,6 +10,7 @@ const openai = new OpenAI({
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
+    const adminSupabase = createAdminClient()
 
     // Check authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -45,8 +47,8 @@ export async function POST(request: NextRequest) {
 IMPORTANT DISCLAIMER: You are NOT a medical professional and do NOT provide medical diagnoses. 
 Your role is to:
 1. Describe visible characteristics of the skin condition
-2. Suggest possible common conditions that may match the appearance
-3. Provide general skincare recommendations
+2. Suggest 3 possible common conditions that may match the appearance
+3. Provide at most 5 general skincare recommendations
 4. Strongly recommend consulting a dermatologist for professional diagnosis
 
 Respond in JSON format with the following structure:
@@ -66,6 +68,11 @@ Respond in JSON format with the following structure:
   "disclaimer": "This is not a medical diagnosis. Please consult a dermatologist."
 }`
 
+    // Build the user message content
+    const userTextContent = caseData.patient_description
+      ? `Please analyze this skin image and provide preliminary observations.\n\nPatient's Description of Symptoms:\n${caseData.patient_description}`
+      : 'Please analyze this skin image and provide preliminary observations.'
+
     const baseMessages = [
       {
         role: 'system' as const,
@@ -74,7 +81,7 @@ Respond in JSON format with the following structure:
       {
         role: 'user' as const,
         content: [
-          { type: 'text' as const, text: 'Please analyze this skin image and provide preliminary observations.' },
+          { type: 'text' as const, text: userTextContent },
           { type: 'image_url' as const, image_url: { url: caseData.image_url, detail: 'high' as const } }
         ]
       }
@@ -147,21 +154,27 @@ Respond in JSON format with the following structure:
       throw new Error('Invalid analysis format returned from AI')
     }
 
-    // Store analysis result
-    const { data: analysisResult, error: analysisError } = await supabase
+    // Store analysis result (allow re-analysis by updating the existing row)
+    const analyzedAt = new Date().toISOString()
+    const analysisPayload = {
+      case_id: caseId,
+      ai_confidence_score: analysis.confidence_score,
+      detected_conditions: analysis.detected_conditions,
+      severity: analysis.severity,
+      recommendations: analysis.recommendations,
+      analysis_metadata: {
+        visible_characteristics: analysis.visible_characteristics,
+        disclaimer: analysis.disclaimer,
+        model: 'gpt-5-mini',
+        analyzed_at: analyzedAt,
+      },
+    }
+
+    const { data: analysisResult, error: analysisError } = await adminSupabase
       .from('analysis_results')
-      .insert({
-        case_id: caseId,
-        ai_confidence_score: analysis.confidence_score,
-        detected_conditions: analysis.detected_conditions,
-        severity: analysis.severity,
-        recommendations: analysis.recommendations,
-        analysis_metadata: {
-          visible_characteristics: analysis.visible_characteristics,
-          disclaimer: analysis.disclaimer,
-          model: 'gpt-5-mini',
-          analyzed_at: new Date().toISOString()
-        }
+      .upsert(analysisPayload, {
+        onConflict: 'case_id',
+        ignoreDuplicates: false,
       })
       .select()
       .single()

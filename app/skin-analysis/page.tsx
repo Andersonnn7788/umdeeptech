@@ -29,6 +29,7 @@ export default function SkinAnalysisPage() {
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [patientDescription, setPatientDescription] = useState<string>('')
 
   const handlePhotoCapture = async (file: File) => {
     setIsProcessing(true)
@@ -45,6 +46,7 @@ export default function SkinAnalysisPage() {
       // Upload image and create case
       const formData = new FormData()
       formData.append('image', file)
+      formData.append('patientDescription', patientDescription)
 
       const uploadResponse = await fetch('/api/cases/upload', {
         method: 'POST',
@@ -113,6 +115,7 @@ export default function SkinAnalysisPage() {
     setCaseId(null)
     setAnalysis(null)
     setError(null)
+    setPatientDescription('')
   }
 
   const getSeverityColor = (severity: string) => {
@@ -211,6 +214,28 @@ export default function SkinAnalysisPage() {
                 Take a clear photo of the affected skin area
               </p>
             </div>
+            
+            {/* Symptom Description */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
+              <label htmlFor="symptom-description" className="block mb-2 font-semibold text-gray-900 dark:text-gray-100">
+                Describe Your Symptoms
+              </label>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Please describe your symptoms in detail. Include when they started, any pain or discomfort, changes you've noticed, etc.
+              </p>
+              <textarea
+                id="symptom-description"
+                value={patientDescription}
+                onChange={(e) => setPatientDescription(e.target.value)}
+                placeholder="Example: I noticed a red, itchy rash on my arm about 3 days ago..."
+                rows={6}
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 resize-none"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
+                This information will be analyzed by AI and shared with the dermatologist for review.
+              </p>
+            </div>
+
             <PhotoCapture onPhotoCapture={handlePhotoCapture} disabled={isProcessing} />
           </div>
         )}

@@ -14,6 +14,7 @@ interface Case {
   status: string
   image_url: string
   thumbnail_url: string
+  patient_description?: string
   created_at: string
   submitted_for_review_at: string
   analysis_results: Array<{
@@ -360,6 +361,21 @@ function ReviewModal({ caseData, onClose, onSubmit }: ReviewModalProps) {
                 />
               </div>
 
+              {/* Patient Description */}
+              {caseData.patient_description && (
+                <div className="p-4 bg-purple-50 dark:bg-purple-950 rounded-xl border border-purple-200 dark:border-purple-800">
+                  <h3 className="font-semibold mb-3 flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    Patient's Description
+                  </h3>
+                  <p className="text-sm whitespace-pre-line text-gray-700 dark:text-gray-300">
+                    {caseData.patient_description}
+                  </p>
+                </div>
+              )}
+
               {/* AI Analysis */}
               {analysis && (
                 <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-xl border border-blue-200 dark:border-blue-800">
@@ -523,4 +539,5 @@ function ReviewModal({ caseData, onClose, onSubmit }: ReviewModalProps) {
     </div>
   )
 }
+
 

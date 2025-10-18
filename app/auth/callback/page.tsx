@@ -21,9 +21,41 @@ export default function AuthCallback() {
         }
 
         if (data.session) {
-          // User is authenticated, redirect to home
+          // User is authenticated, check role and redirect appropriately
           setStatus('Authentication successful!')
-          setTimeout(() => router.push('/'), 1000)
+          
+          try {
+            // Get user role for redirection
+            const response = await fetch('/api/users')
+            const result = await response.json()
+            
+            if (result.success && result.data?.role) {
+              const role = result.data.role
+              
+              // Check if user was auto-created with default patient role
+              // If created and updated at same time with patient role, assume it's auto-created
+              const createdAt = new Date(result.data.created_at)
+              const updatedAt = new Date(result.data.updated_at) 
+              const timeDiff = Math.abs(updatedAt.getTime() - createdAt.getTime()) / 1000 // seconds
+              
+              // If role is patient and record was created within 5 seconds, redirect to role selection
+              if (role === 'patient' && timeDiff < 5) {
+                console.log('Auto-created patient detected, redirecting to role selection')
+                setTimeout(() => router.push('/auth/role-selection'), 1000)
+              } else {
+                // User has a properly set role, redirect to appropriate dashboard
+                const dashboardUrl = role === 'doctor' ? '/dermatologist' : '/appointments'
+                setTimeout(() => router.push(dashboardUrl), 1000)
+              }
+            } else {
+              // User record not found, might be first OAuth login - redirect to role selection
+              setTimeout(() => router.push('/auth/role-selection'), 1000)
+            }
+          } catch (error) {
+            console.error('Error checking user role:', error)
+            // Fallback to role selection to be safe
+            setTimeout(() => router.push('/auth/role-selection'), 1000)
+          }
         } else {
           // No session, redirect to login
           router.push('/auth/login')

@@ -22,7 +22,8 @@ export default function LoginPage() {
     email: '',
     password: '',
     name: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    role: 'patient' as 'patient' | 'doctor'
   })
 
   const handleInputChange = (field: string, value: string) => {
@@ -46,7 +47,28 @@ export default function LoginPage() {
         if (error) throw error
 
         if (data.user) {
-          router.push(redirectUrl)
+          // Check if there's a specific redirect URL from query params
+          if (redirectUrl && redirectUrl !== '/') {
+            router.push(redirectUrl)
+          } else {
+            // Get user role and redirect to appropriate dashboard
+            try {
+              const response = await fetch('/api/users')
+              const result = await response.json()
+              
+              if (result.success && result.data?.role) {
+                const role = result.data.role
+                const dashboardUrl = role === 'doctor' ? '/dermatologist' : '/appointments'
+                router.push(dashboardUrl)
+              } else {
+                // Fallback to default page
+                router.push('/')
+              }
+            } catch (roleError) {
+              console.error('Error getting user role:', roleError)
+              router.push('/')
+            }
+          }
         }
       } else {
         // Sign up with email/password
@@ -63,7 +85,8 @@ export default function LoginPage() {
           password: formData.password,
           options: {
             data: {
-              name: formData.name
+              name: formData.name,
+              role: formData.role
             }
           }
         })
@@ -71,6 +94,30 @@ export default function LoginPage() {
         if (error) throw error
 
         if (data.user) {
+          // Create patient record with role
+          try {
+            const response = await fetch('/api/users', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                userId: data.user.id,
+                name: formData.name,
+                email: formData.email,
+                role: formData.role
+              })
+            })
+
+            const result = await response.json()
+            
+            if (!response.ok) {
+              console.error('Failed to create user record:', result.error)
+            }
+          } catch (createError) {
+            console.error('Error creating user record:', createError)
+          }
+
           setError('Check your email for verification link!')
           // Optionally redirect after successful signup
           // router.push('/')
@@ -126,17 +173,50 @@ export default function LoginPage() {
           <div className="px-6 pb-6">
             <form onSubmit={handleEmailAuth} className="space-y-4">
               {!isLogin && (
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <Input
-                    type="text"
-                    placeholder="Full Name"
-                    value={formData.name}
-                    onChange={(e) => handleInputChange('name', e.target.value)}
-                    className="pl-10 h-12 rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500"
-                    required={!isLogin}
-                  />
-                </div>
+                <>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <Input
+                      type="text"
+                      placeholder="Full Name"
+                      value={formData.name}
+                      onChange={(e) => handleInputChange('name', e.target.value)}
+                      className="pl-10 h-12 rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                      required={!isLogin}
+                    />
+                  </div>
+
+                  {/* Role Selection */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">Select your role:</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Button
+                        type="button"
+                        variant={formData.role === 'patient' ? 'default' : 'outline'}
+                        onClick={() => handleInputChange('role', 'patient')}
+                        className={`h-12 rounded-xl font-semibold ${
+                          formData.role === 'patient' 
+                            ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                            : 'border-2 border-gray-200 text-gray-700 hover:border-blue-300'
+                        }`}
+                      >
+                        Patient
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={formData.role === 'doctor' ? 'default' : 'outline'}
+                        onClick={() => handleInputChange('role', 'doctor')}
+                        className={`h-12 rounded-xl font-semibold ${
+                          formData.role === 'doctor' 
+                            ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                            : 'border-2 border-gray-200 text-gray-700 hover:border-blue-300'
+                        }`}
+                      >
+                        Doctor
+                      </Button>
+                    </div>
+                  </div>
+                </>
               )}
 
               <div className="relative">
@@ -223,7 +303,7 @@ export default function LoginPage() {
                 onClick={() => {
                   setIsLogin(!isLogin)
                   setError(null)
-                  setFormData({ email: '', password: '', name: '', confirmPassword: '' })
+                  setFormData({ email: '', password: '', name: '', confirmPassword: '', role: 'patient' })
                 }}
                 className="text-blue-600 hover:text-blue-800 font-semibold text-sm hover:underline"
               >

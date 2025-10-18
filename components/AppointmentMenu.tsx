@@ -5,14 +5,12 @@ import {
   Trash2
 } from "lucide-react"
 import { useDeleteAppointment } from '@/lib/hooks/useAppointments'
-import { useGoogleCalendar } from '@/lib/hooks/useGoogleCalendar'
 
 interface AppointmentMenuProps {
   appointment: {
     id: string
     appointment_date: string
     appointment_time: string
-    calendar_event_id?: string
     doctor: {
       name: string
       specialty: string
@@ -26,7 +24,6 @@ export default function AppointmentMenu({ appointment, onDeleted }: AppointmentM
   const [isOpen, setIsOpen] = useState(false)
   const [showConfirmDelete, setShowConfirmDelete] = useState(false)
   const { deleteAppointment, loading: deleting } = useDeleteAppointment()
-  const { deleteCalendarEvent } = useGoogleCalendar()
 
   const handleDelete = async () => {
     try {
@@ -36,16 +33,6 @@ export default function AppointmentMenu({ appointment, onDeleted }: AppointmentM
       const result = await deleteAppointment(appointment.id)
       
       if (result.success) {
-        // Try to delete from Google Calendar if event ID exists
-        if (result.data?.appointment?.calendar_event_id) {
-          try {
-            await deleteCalendarEvent(result.data.appointment.calendar_event_id)
-            console.log('✅ Deleted from Google Calendar')
-          } catch (calendarError) {
-            console.warn('⚠️ Could not delete from Google Calendar:', calendarError)
-          }
-        }
-        
         // Notify parent component
         onDeleted()
         setShowConfirmDelete(false)
@@ -114,7 +101,7 @@ export default function AppointmentMenu({ appointment, onDeleted }: AppointmentM
               {new Date(appointment.appointment_date).toLocaleDateString()} at {appointment.appointment_time}?
             </p>
             <p className="text-sm text-gray-500 dark:text-gray-500 mb-6">
-              This action cannot be undone and will remove the appointment from both the system and your Google Calendar.
+              This action cannot be undone.
             </p>
             <div className="flex gap-3 justify-end">
               <Button

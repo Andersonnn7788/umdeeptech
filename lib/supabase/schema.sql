@@ -317,6 +317,7 @@ CREATE TABLE IF NOT EXISTS patients (
     phone VARCHAR(50),
     date_of_birth DATE,
     avatar TEXT,
+    role VARCHAR(50) DEFAULT 'patient' CHECK (role IN ('patient', 'doctor')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -422,4 +423,16 @@ CREATE POLICY "Anonymous users can create sample appointments" ON appointments
         patient_id::text = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
         OR auth.uid() IS NOT NULL
     );
+
+-- Add role column to existing patients table if it doesn't exist
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+        AND table_name = 'patients' 
+        AND column_name = 'role'
+    ) THEN
+        ALTER TABLE patients ADD COLUMN role VARCHAR(50) DEFAULT 'patient' CHECK (role IN ('patient', 'doctor'));
+    END IF;
+END $$;
 

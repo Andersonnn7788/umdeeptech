@@ -32,11 +32,11 @@ export default function BottomNavigation() {
       clickable: true
     },
     {
-      href: "#",
+      href: "/multimedia",
       icon: Heart,
-      label: "Health",
-      isActive: false,
-      clickable: false
+      label: "Edu Hub",
+      isActive: pathname.startsWith("/multimedia"),
+      clickable: true
     },
     {
       href: "/profile",

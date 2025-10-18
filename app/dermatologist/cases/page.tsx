@@ -1259,9 +1259,9 @@ function FollowUpModal({ caseData, onClose, onSubmit }: FollowUpModalProps) {
             <div className="flex gap-4">
               <button
                 onClick={onClose}
-                className="flex-1 px-6 py-3 border border-gray-300 dark:border-gray-600 rounded-xl font-semibold hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold transition-colors"
               >
-                Close
+                Rejected
               </button>
               <button
                 onClick={handleApprove}

@@ -436,3 +436,193 @@ DO $$ BEGIN
     END IF;
 END $$;
 
+-- Unified Medication Todo System
+-- Create update function for updated_at column if it doesn't exist
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Create unified medications table - combines medication, schedule, and completion data
+CREATE TABLE IF NOT EXISTS medications (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+    doctor_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+    
+    -- Medication details
+    name VARCHAR(255) NOT NULL,
+    dosage VARCHAR(100) NOT NULL,
+    instructions TEXT,
+    start_date DATE NOT NULL,
+    end_date DATE,
+    
+    -- Schedule details
+    time_of_day TIME NOT NULL,
+    label VARCHAR(50), -- e.g., "Morning", "Afternoon", "Evening", "Night"
+    
+    -- Completion tracking for each specific date
+    scheduled_date DATE NOT NULL, -- The specific date this medication instance is for
+    is_completed BOOLEAN DEFAULT FALSE,
+    completed_at TIMESTAMP WITH TIME ZONE,
+    proof_image_url TEXT, -- URL to uploaded proof image
+    completion_notes TEXT,
+    
+    -- Metadata
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- Prevent duplicate entries for same medication on same date/time
+    UNIQUE(patient_id, name, dosage, scheduled_date, time_of_day)
+);
+
+-- Create indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_medications_patient_id ON medications(patient_id);
+CREATE INDEX IF NOT EXISTS idx_medications_patient_date ON medications(patient_id, scheduled_date);
+CREATE INDEX IF NOT EXISTS idx_medications_dates ON medications(start_date, end_date);
+CREATE INDEX IF NOT EXISTS idx_medications_completion ON medications(patient_id, scheduled_date, is_completed);
+
+-- Create triggers for updated_at
+DO $$ 
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger 
+    WHERE tgname = 'update_medications_updated_at'
+  ) THEN
+    CREATE TRIGGER update_medications_updated_at 
+      BEFORE UPDATE ON medications
+      FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+  END IF;
+END $$;
+
+-- Enable RLS on medications table
+ALTER TABLE medications ENABLE ROW LEVEL SECURITY;
+
+-- Medication policies for unified table
+DO $$ 
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies 
+    WHERE schemaname = 'public' 
+    AND tablename = 'medications' 
+    AND policyname = 'Patients can view their medications'
+  ) THEN
+    CREATE POLICY "Patients can view their medications" ON medications
+        FOR SELECT USING (auth.uid()::text = patient_id::text);
+  END IF;
+END $$;
+
+DO $$ 
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies 
+    WHERE schemaname = 'public' 
+    AND tablename = 'medications' 
+    AND policyname = 'Doctors can create medications for their patients'
+  ) THEN
+    CREATE POLICY "Doctors can create medications for their patients" ON medications
+        FOR INSERT WITH CHECK (auth.uid()::text = doctor_id::text);
+  END IF;
+END $$;
+
+DO $$ 
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies 
+    WHERE schemaname = 'public' 
+    AND tablename = 'medications' 
+    AND policyname = 'Doctors can view medications they prescribed'
+  ) THEN
+    CREATE POLICY "Doctors can view medications they prescribed" ON medications
+        FOR SELECT USING (auth.uid()::text = doctor_id::text);
+  END IF;
+END $$;
+
+DO $$ 
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies 
+    WHERE schemaname = 'public' 
+    AND tablename = 'medications' 
+    AND policyname = 'Patients can update their medication completions'
+  ) THEN
+    CREATE POLICY "Patients can update their medication completions" ON medications
+        FOR UPDATE USING (
+            auth.uid()::text = patient_id::text 
+            AND scheduled_date <= CURRENT_DATE
+        )
+        WITH CHECK (
+            auth.uid()::text = patient_id::text 
+            AND scheduled_date <= CURRENT_DATE
+        );
+  END IF;
+END $$;
+
+-- Storage bucket for medication proof images
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('medication-proofs', 'medication-proofs', true)
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  public = EXCLUDED.public;
+
+-- Storage policies for medication proof images
+DO $$ 
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies 
+    WHERE schemaname = 'storage' 
+    AND tablename = 'objects' 
+    AND policyname = 'Patients can upload medication proof images'
+  ) THEN
+    CREATE POLICY "Patients can upload medication proof images"
+      ON storage.objects FOR INSERT
+      WITH CHECK (
+        bucket_id = 'medication-proofs'
+        AND auth.uid()::text = (storage.foldername(name))[1]
+      );
+  END IF;
+END $$;
+
+DO $$ 
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies 
+    WHERE schemaname = 'storage' 
+    AND tablename = 'objects' 
+    AND policyname = 'Patients can view their own medication proof images'
+  ) THEN
+    CREATE POLICY "Patients can view their own medication proof images"
+      ON storage.objects FOR SELECT
+      USING (
+        bucket_id = 'medication-proofs'
+        AND auth.uid()::text = (storage.foldername(name))[1]
+      );
+  END IF;
+END $$;
+
+DO $$ 
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies 
+    WHERE schemaname = 'storage' 
+    AND tablename = 'objects' 
+    AND policyname = 'Doctors can view medication proof images for their patients'
+  ) THEN
+    CREATE POLICY "Doctors can view medication proof images for their patients"
+      ON storage.objects FOR SELECT
+      USING (
+        bucket_id = 'medication-proofs'
+        AND EXISTS (
+          SELECT 1 FROM medications m
+          JOIN patients p ON p.id = m.patient_id
+          WHERE m.doctor_id::text = auth.uid()::text
+          AND p.id::text = (storage.foldername(storage.objects.name))[1]
+        )
+      );
+  END IF;
+END $$;
+
+
+

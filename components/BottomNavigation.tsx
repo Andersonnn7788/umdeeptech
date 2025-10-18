@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, Scan, Calendar, User, Heart } from "lucide-react"
+import { Home, Scan, Calendar, User, Pill } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -32,11 +32,11 @@ export default function BottomNavigation() {
       clickable: true
     },
     {
-      href: "#",
-      icon: Heart,
-      label: "Health",
-      isActive: false,
-      clickable: false
+      href: "/todo",
+      icon: Pill,
+      label: "Todo",
+      isActive: pathname.startsWith("/todo"),
+      clickable: true
     },
     {
       href: "/profile",

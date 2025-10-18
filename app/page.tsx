@@ -2,36 +2,49 @@
 
 import { useRouter } from 'next/navigation'
 import BottomNavigation from '@/components/BottomNavigation'
+import Image from 'next/image'
+import { useAuth } from '@/lib/hooks/useAuth'
 
 export default function Home() {
   const router = useRouter()
+  const { user, loading } = useAuth()
+
+  const handleDoctorClick = () => {
+    if (!user) {
+      // Redirect to login with return URL
+      router.push('/auth/login?redirect=/dermatologist')
+    } else {
+      router.push('/dermatologist')
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-blue-50 dark:from-gray-900 dark:via-blue-950 dark:to-gray-900 flex flex-col">
       {/* Header */}
       <header className="w-full px-4 py-4 flex justify-end items-center">
         <button
-          onClick={() => router.push('/dermatologist/cases')}
-          className="px-4 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-2 border-gray-200 dark:border-gray-600 rounded-lg font-medium text-sm hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-blue-500 dark:hover:border-blue-500 transition-all shadow-sm hover:shadow-md"
+          onClick={handleDoctorClick}
+          disabled={loading}
+          className="px-4 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-2 border-gray-200 dark:border-gray-600 rounded-lg font-medium text-sm hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-blue-500 dark:hover:border-blue-500 transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Doctor
+          {loading ? 'Loading...' : 'Doctor'}
         </button>
       </header>
 
       {/* Main Content - Centered */}
       <main className="flex-1 flex flex-col items-center justify-center px-6 pb-20">
-        <div className="w-full max-w-md space-y-8 text-center">
-          {/* Logo and Brand Name - Centered */}
-          <div className="flex flex-col items-center justify-center gap-4 mb-8">
-            <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center shadow-2xl">
-              <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              SkinLife
-            </h1>
-          </div>
+        <div className="w-full max-w-md space-y-2 text-center">
+        <div className="flex flex-col items-center justify-center">
+  <Image 
+    src="/skinlife-logo.png" 
+    alt="SkinLife Logo" 
+    width={400} 
+    height={400}
+    priority
+    className="w-80 h-80 md:w-[28rem] md:h-[28rem] object-contain"
+  />
+</div>
+
 
           {/* CTA Buttons */}
           <div className="space-y-4">

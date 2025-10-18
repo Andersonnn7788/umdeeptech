@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import { WithAuth } from '@/components/WithAuth'
+import { useAuth } from '@/lib/hooks/useAuth'
+import { Home, Calendar, Heart, User } from 'lucide-react'
+import Link from 'next/link'
+import { Button } from '@/components/ui/button'
 
 interface Case {
   id: string
@@ -27,14 +31,24 @@ interface Case {
 
 export default function DermatologistCasesPage() {
   const router = useRouter()
+  const { user, loading: authLoading } = useAuth()
   const [cases, setCases] = useState<Case[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedCase, setSelectedCase] = useState<Case | null>(null)
 
+  // Redirect to login if not authenticated
   useEffect(() => {
-    fetchCases()
-  }, [])
+    if (!authLoading && !user) {
+      router.push('/auth/login?redirect=/dermatologist')
+    }
+  }, [user, authLoading, router])
+
+  useEffect(() => {
+    if (user) {
+      fetchCases()
+    }
+  }, [user])
 
   const fetchCases = async () => {
     try {
@@ -61,12 +75,17 @@ export default function DermatologistCasesPage() {
     }
   }
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="lg" text="Loading cases..." />
+        <LoadingSpinner size="lg" text="Loading..." />
       </div>
     )
+  }
+
+  // Don't render anything if not authenticated (redirect will happen)
+  if (!user) {
+    return null
   }
 
   if (error) {
@@ -92,7 +111,7 @@ export default function DermatologistCasesPage() {
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => router.push('/')}
+              onClick={() => router.push('/dermatologist')}
               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -100,7 +119,7 @@ export default function DermatologistCasesPage() {
               </svg>
             </button>
             <div>
-              <h1 className="text-xl font-bold">Dermatologist Review</h1>
+              <h1 className="text-xl font-bold">Review Cases</h1>
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 {cases.length} case{cases.length !== 1 ? 's' : ''} pending review
               </p>
@@ -211,6 +230,40 @@ export default function DermatologistCasesPage() {
           }}
         />
       )}
+
+      {/* Bottom Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 z-50">
+        <div className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 pb-safe">
+          <div className="flex items-center justify-around px-4 py-3 max-w-md mx-auto">
+            {[
+              { href: "/dermatologist", icon: Home, label: "Home", isActive: false, clickable: true },
+              { href: "/dermatologist/appointments", icon: Calendar, label: "Appointments", isActive: false, clickable: true },
+              { href: "#", icon: Heart, label: "Health", isActive: false, clickable: false },
+              { href: "/dermatologist/profile", icon: User, label: "Profile", isActive: false, clickable: true }
+            ].map((item) => (
+              <Link 
+                key={item.href} 
+                href={item.clickable ? item.href : "#"}
+                className={`flex flex-col items-center gap-1 flex-1 ${!item.clickable ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`}
+              >
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={!item.clickable}
+                  className={`flex flex-col items-center gap-1 h-auto py-2 px-3 ${
+                    item.isActive 
+                      ? "text-blue-600 dark:text-blue-400" 
+                      : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                  }`}
+                >
+                  <item.icon className="h-6 w-6" />
+                  <span className="text-xs font-medium">{item.label}</span>
+                </Button>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

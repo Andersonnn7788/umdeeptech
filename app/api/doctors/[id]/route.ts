@@ -16,18 +16,12 @@ export async function GET(
       .single()
     
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-    
-    if (!data) {
-      return NextResponse.json(
-        { error: 'Doctor not found' }, 
-        { status: 404 }
-      )
+      return NextResponse.json({ error: error.message }, { status: 404 })
     }
     
     return NextResponse.json(data)
   } catch (error) {
+    console.error('API Error:', error)
     return NextResponse.json(
       { error: 'Internal server error' }, 
       { status: 500 }

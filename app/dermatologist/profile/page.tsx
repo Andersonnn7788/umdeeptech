@@ -1,16 +1,31 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/hooks/useAuth'
 import LoadingSpinner from '@/components/LoadingSpinner'
-import { Home, Calendar, Heart, User, Mail, LogOut } from 'lucide-react'
+import { Home, Calendar, MessageSquare, User, Mail, LogOut, Stethoscope, Award, Briefcase, MapPin, Edit2 } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import DoctorChatbot from '@/components/DoctorChatbot'
+
+interface DoctorProfile {
+  id: string
+  name: string
+  specialty: string
+  title: string
+  experience: string
+  category: string
+  location?: string
+  rating: number
+}
 
 export default function DermatologistProfile() {
   const router = useRouter()
   const { user, loading, signOut } = useAuth()
+  const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null)
+  const [profileLoading, setProfileLoading] = useState(true)
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false)
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -19,12 +34,39 @@ export default function DermatologistProfile() {
     }
   }, [user, loading, router])
 
+  // Fetch doctor profile
+  useEffect(() => {
+    const fetchDoctorProfile = async () => {
+      if (!user) return
+
+      try {
+        const response = await fetch(`/api/doctors/${user.id}`)
+        if (response.ok) {
+          const profile = await response.json()
+          setDoctorProfile(profile)
+        }
+      } catch (error) {
+        console.error('Failed to fetch doctor profile:', error)
+      } finally {
+        setProfileLoading(false)
+      }
+    }
+
+    if (user) {
+      fetchDoctorProfile()
+    }
+  }, [user])
+
   const handleSignOut = async () => {
     await signOut()
     router.push('/')
   }
 
-  if (loading) {
+  const handleEditProfile = () => {
+    router.push('/auth/doctor-setup')
+  }
+
+  if (loading || profileLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner size="lg" text="Loading..." />
@@ -42,28 +84,32 @@ export default function DermatologistProfile() {
       icon: Home,
       label: "Home",
       isActive: false,
-      clickable: true
+      clickable: true,
+      onClick: null
     },
     {
       href: "/dermatologist/appointments",
       icon: Calendar,
       label: "Appointments",
       isActive: false,
-      clickable: true
+      clickable: true,
+      onClick: null
     },
     {
       href: "#",
-      icon: Heart,
-      label: "Health",
+      icon: MessageSquare,
+      label: "Chatbot",
       isActive: false,
-      clickable: false
+      clickable: true,
+      onClick: () => setIsChatbotOpen(true)
     },
     {
       href: "/dermatologist/profile",
       icon: User,
       label: "Profile",
       isActive: true,
-      clickable: true
+      clickable: true,
+      onClick: null
     }
   ]
 
@@ -88,30 +134,77 @@ export default function DermatologistProfile() {
             {/* User Info */}
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center gap-3 mb-4">
+                <User className="w-5 h-5 text-gray-400" />
+                <div className="flex-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Name</p>
+                  <p className="font-medium">{doctorProfile?.name || user.user_metadata?.name || 'Not set'}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-3">
                 <Mail className="w-5 h-5 text-gray-400" />
                 <div className="flex-1">
                   <p className="text-xs text-gray-500 dark:text-gray-400">Email</p>
                   <p className="font-medium">{user.email}</p>
                 </div>
               </div>
-              
-              {user.user_metadata?.name && (
+            </div>
+
+            {/* Professional Information */}
+            {doctorProfile && (
+              <div className="p-6 border-b border-gray-200 dark:border-gray-700 space-y-4">
                 <div className="flex items-center gap-3">
-                  <User className="w-5 h-5 text-gray-400" />
+                  <Stethoscope className="w-5 h-5 text-blue-500" />
                   <div className="flex-1">
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Name</p>
-                    <p className="font-medium">{user.user_metadata.name}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Specialty</p>
+                    <p className="font-medium">{doctorProfile.specialty}</p>
                   </div>
                 </div>
-              )}
-            </div>
+
+                <div className="flex items-center gap-3">
+                  <Award className="w-5 h-5 text-purple-500" />
+                  <div className="flex-1">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Title</p>
+                    <p className="font-medium">{doctorProfile.title}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <Briefcase className="w-5 h-5 text-green-500" />
+                  <div className="flex-1">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Experience</p>
+                    <p className="font-medium">{doctorProfile.experience}</p>
+                  </div>
+                </div>
+
+                {doctorProfile.location && (
+                  <div className="flex items-center gap-3">
+                    <MapPin className="w-5 h-5 text-red-500" />
+                    <div className="flex-1">
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Location</p>
+                      <p className="font-medium">{doctorProfile.location}</p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3">
+                  <svg className="w-5 h-5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                  <div className="flex-1">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Rating</p>
+                    <p className="font-medium">{doctorProfile.rating.toFixed(1)} / 5.0</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Role Badge */}
             <div className="px-6 py-4 bg-blue-50 dark:bg-blue-950 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-center gap-2">
                 <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
                 <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">
-                  Dermatologist
+                  {doctorProfile?.category || 'Dermatologist'}
                 </span>
               </div>
             </div>
@@ -119,15 +212,11 @@ export default function DermatologistProfile() {
             {/* Actions */}
             <div className="p-6 space-y-3">
               <button
-                className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-xl font-medium transition-colors text-left flex items-center gap-3 opacity-50 cursor-not-allowed"
-                disabled
+                onClick={handleEditProfile}
+                className="w-full px-4 py-3 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-xl font-medium transition-colors flex items-center gap-3"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
+                <Edit2 className="w-5 h-5" />
                 Edit Profile
-                <span className="ml-auto text-xs text-gray-500">Coming Soon</span>
               </button>
 
               <button
@@ -146,30 +235,58 @@ export default function DermatologistProfile() {
       <div className="fixed bottom-0 left-0 right-0 z-50">
         <div className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 pb-safe">
           <div className="flex items-center justify-around px-4 py-3 max-w-md mx-auto">
-            {navItems.map((item) => (
-              <Link 
-                key={item.href} 
-                href={item.clickable ? item.href : "#"}
-                className={`flex flex-col items-center gap-1 flex-1 ${!item.clickable ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`}
-              >
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={!item.clickable}
-                  className={`flex flex-col items-center gap-1 h-auto py-2 px-3 ${
-                    item.isActive 
-                      ? "text-blue-600 dark:text-blue-400" 
-                      : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-                  }`}
+            {navItems.map((item) => {
+              if (item.onClick) {
+                return (
+                  <button
+                    key={item.href}
+                    onClick={item.onClick}
+                    className="flex flex-col items-center gap-1 flex-1"
+                  >
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={`flex flex-col items-center gap-1 h-auto py-2 px-3 ${
+                        item.isActive 
+                          ? "text-blue-600 dark:text-blue-400" 
+                          : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                      }`}
+                    >
+                      <item.icon className="h-6 w-6" />
+                      <span className="text-xs font-medium">{item.label}</span>
+                    </Button>
+                  </button>
+                )
+              }
+              
+              return (
+                <Link 
+                  key={item.href} 
+                  href={item.clickable ? item.href : "#"}
+                  className={`flex flex-col items-center gap-1 flex-1 ${!item.clickable ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`}
                 >
-                  <item.icon className="h-6 w-6" />
-                  <span className="text-xs font-medium">{item.label}</span>
-                </Button>
-              </Link>
-            ))}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={!item.clickable}
+                    className={`flex flex-col items-center gap-1 h-auto py-2 px-3 ${
+                      item.isActive 
+                        ? "text-blue-600 dark:text-blue-400" 
+                        : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                    }`}
+                  >
+                    <item.icon className="h-6 w-6" />
+                    <span className="text-xs font-medium">{item.label}</span>
+                  </Button>
+                </Link>
+              )
+            })}
           </div>
         </div>
       </div>
+
+      {/* Chatbot Modal */}
+      <DoctorChatbot isOpen={isChatbotOpen} onClose={() => setIsChatbotOpen(false)} />
     </div>
   )
 }

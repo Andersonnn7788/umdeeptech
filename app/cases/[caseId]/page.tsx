@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect, use, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import LoadingSpinner from '@/components/LoadingSpinner'
+import { WithAuth } from '@/components/WithAuth'
+import { supabase } from '@/lib/supabase/client'
 
 interface CaseData {
   id: string
@@ -11,9 +13,17 @@ interface CaseData {
   image_url: string
   thumbnail_url: string
   patient_description?: string
+  assigned_doctor_id?: string
   created_at: string
   submitted_for_review_at?: string
   completed_at?: string
+  assigned_doctor?: Array<{
+    id: string
+    name: string
+    specialty: string
+    title: string
+    experience: string
+  }>
   analysis_results?: Array<{
     id: string
     ai_confidence_score: number
@@ -31,11 +41,19 @@ interface CaseData {
   }>
   dermatologist_reviews?: Array<{
     id: string
+    status: string
     professional_diagnosis: string
     treatment_recommendations: string
     urgency_level: string
+    agrees_with_ai?: boolean
     notes?: string
     reviewed_at: string
+    dermatologist?: {
+      id: string
+      name: string
+      specialty: string
+      title: string
+    }
   }>
   user_reports?: Array<{
     id: string
@@ -44,6 +62,8 @@ interface CaseData {
       recommendations: string[]
       next_steps: string[]
       disclaimer: string
+      pdf_url?: string
+      pdf_generated_at?: string
     }
   }>
 }
@@ -54,6 +74,16 @@ export default function CaseDetailsPage({ params }: { params: Promise<{ caseId: 
   const [caseData, setCaseData] = useState<CaseData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [reportUrl, setReportUrl] = useState<string | null>(null)
+  const [reportLoading, setReportLoading] = useState(false)
+  const [reportError, setReportError] = useState<string | null>(null)
+  const isMountedRef = useRef(true)
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     fetchCase()
@@ -73,6 +103,73 @@ export default function CaseDetailsPage({ params }: { params: Promise<{ caseId: 
       setLoading(false)
     }
   }
+
+  const reviewRecord = caseData?.dermatologist_reviews?.[0] ?? null
+  const reviewId = reviewRecord && reviewRecord.status === 'approved' ? reviewRecord.id : null
+
+  const fetchReportPdf = useCallback(async () => {
+    if (!isMountedRef.current) {
+      return
+    }
+
+    if (!reviewId) {
+      setReportUrl(null)
+      setReportError(null)
+      setReportLoading(false)
+      return
+    }
+
+    setReportLoading(true)
+    setReportError(null)
+
+    try {
+      const { data, error } = await supabase.functions.invoke<{
+        signed_url?: string
+        path?: string
+      }>('export-derm-report', {
+        body: { review_id: reviewId },
+      })
+
+      if (error) {
+        throw new Error(error.message ?? 'Failed to retrieve the PDF report.')
+      }
+
+      const signedUrl =
+        data && typeof data.signed_url === 'string' ? data.signed_url : null
+
+      if (!signedUrl) {
+        throw new Error('The PDF report is not ready yet. Please try again soon.')
+      }
+
+      if (!isMountedRef.current) {
+        return
+      }
+
+      setReportUrl(signedUrl)
+      setReportError(null)
+    } catch (err) {
+      if (!isMountedRef.current) {
+        return
+      }
+
+      setReportUrl(null)
+      setReportError(err instanceof Error ? err.message : 'Unable to load the PDF report.')
+    } finally {
+      if (isMountedRef.current) {
+        setReportLoading(false)
+      }
+    }
+  }, [reviewId])
+
+  useEffect(() => {
+    fetchReportPdf()
+  }, [fetchReportPdf])
+
+  const handleRefreshReport = useCallback(() => {
+    fetchReportPdf().catch(() => {
+      // Error state already handled inside fetchReportPdf
+    })
+  }, [fetchReportPdf])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -135,8 +232,11 @@ export default function CaseDetailsPage({ params }: { params: Promise<{ caseId: 
   }
 
   const analysis = caseData.analysis_results?.[0]
-  const review = caseData.dermatologist_reviews?.[0]
+  const review = reviewRecord
   const report = caseData.user_reports?.[0]
+  const aiPdfUrl = report?.report_data?.pdf_url ?? null
+  const resolvedReportPdfUrl = reportUrl ?? aiPdfUrl
+  const resolvedReportGeneratedAt = report?.report_data?.pdf_generated_at ?? null
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-800">
@@ -281,6 +381,35 @@ export default function CaseDetailsPage({ params }: { params: Promise<{ caseId: 
         {/* Dermatologist Review Section */}
         {review && (
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
+            {/* Doctor Info Header */}
+            {review.dermatologist && (
+              <div className="mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-start gap-4">
+                  <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h3 className="text-lg font-bold">{review.dermatologist.name}</h3>
+                        <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">
+                          {review.dermatologist.title}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Specialty: {review.dermatologist.specialty}
+                        </p>
+                      </div>
+                      <span className="px-3 py-1 bg-green-600 text-white text-xs font-semibold rounded-full">
+                        Reviewed
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="flex items-start justify-between mb-6">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
@@ -303,7 +432,12 @@ export default function CaseDetailsPage({ params }: { params: Promise<{ caseId: 
             <div className="space-y-4">
               {/* Professional Diagnosis */}
               <div>
-                <h3 className="font-semibold mb-2">Professional Diagnosis</h3>
+                <h3 className="font-semibold mb-2 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Professional Diagnosis
+                </h3>
                 <p className="text-gray-700 dark:text-gray-300 p-4 bg-green-50 dark:bg-green-950 rounded-xl">
                   {review.professional_diagnosis}
                 </p>
@@ -311,21 +445,154 @@ export default function CaseDetailsPage({ params }: { params: Promise<{ caseId: 
 
               {/* Treatment Recommendations */}
               <div>
-                <h3 className="font-semibold mb-2">Treatment Recommendations</h3>
+                <h3 className="font-semibold mb-2 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                  </svg>
+                  Treatment Recommendations
+                </h3>
                 <p className="text-gray-700 dark:text-gray-300 p-4 bg-green-50 dark:bg-green-950 rounded-xl whitespace-pre-line">
                   {review.treatment_recommendations}
                 </p>
               </div>
 
+              {/* AI Agreement Badge */}
+              {review.agrees_with_ai !== undefined && (
+                <div className={`p-3 rounded-xl border ${
+                  review.agrees_with_ai 
+                    ? 'bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800' 
+                    : 'bg-orange-50 dark:bg-orange-950 border-orange-200 dark:border-orange-800'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    {review.agrees_with_ai ? (
+                      <>
+                        <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                          Doctor agrees with AI analysis
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5 text-orange-600 dark:text-orange-400" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                        <span className="text-sm font-medium text-orange-700 dark:text-orange-300">
+                          Doctor has a different assessment than AI
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Additional Notes */}
               {review.notes && (
                 <div>
-                  <h3 className="font-semibold mb-2">Additional Notes</h3>
+                  <h3 className="font-semibold mb-2 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                    </svg>
+                    Additional Notes
+                  </h3>
                   <p className="text-gray-700 dark:text-gray-300 p-4 bg-gray-50 dark:bg-gray-900 rounded-xl">
                     {review.notes}
                   </p>
                 </div>
               )}
+
+              <div>
+                <h3 className="font-semibold mb-2 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4h10a2 2 0 012 2v12l-4-2-4 2-4-2-4 2V6a2 2 0 012-2z" />
+                  </svg>
+                  Dermatology PDF Report
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  A downloadable copy of your dermatologist&rsquo;s findings. The link remains active for seven days.
+                </p>
+                <div className="mt-3 space-y-3">
+                  {reportLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                      <LoadingSpinner size="sm" />
+                      Preparing secure link...
+                    </div>
+                  ) : reportError ? (
+                    <div className="p-3 bg-red-50 dark:bg-red-900 border border-red-200 dark:border-red-700 rounded-xl">
+                      <p className="text-sm text-red-700 dark:text-red-200">
+                        {reportError}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleRefreshReport}
+                        disabled={reportLoading}
+                        className="mt-2 inline-flex items-center gap-2 text-sm font-semibold text-red-700 dark:text-red-200 hover:underline disabled:opacity-60"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582M20 20v-5h-.581M5.635 9A7 7 0 0112 5c1.933 0 3.683.784 4.95 2.05M18.364 15A7 7 0 0112 19c-1.933 0-3.683-.784-4.95-2.05" />
+                        </svg>
+                        Try again
+                      </button>
+                    </div>
+                  ) : reportUrl ? (
+                    <>
+                      <div
+                        className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-inner"
+                        style={{ aspectRatio: '8.27 / 11.69' }}
+                      >
+                        <iframe
+                          src={`${reportUrl}#view=FitH`}
+                          title="Dermatology report PDF"
+                          className="w-full h-full"
+                          loading="lazy"
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-3">
+                        <a
+                          href={reportUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4" />
+                          </svg>
+                          Open in new tab
+                        </a>
+                        <button
+                          type="button"
+                          onClick={handleRefreshReport}
+                          disabled={reportLoading}
+                          className="inline-flex items-center gap-2 px-4 py-2 border border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300 rounded-xl font-semibold hover:bg-blue-50 dark:hover:bg-blue-900 transition-colors disabled:opacity-60"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582M20 20v-5h-.581M5.635 9A7 7 0 0112 5c1.933 0 3.683.784 4.95 2.05M18.364 15A7 7 0 0112 19c-1.933 0-3.683-.784-4.95-2.05" />
+                          </svg>
+                          Refresh link
+                        </button>
+                      </div>
+                      {aiPdfUrl && (
+                        <a
+                          href={aiPdfUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-semibold transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                          Download AI Analysis PDF
+                        </a>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      The PDF report will appear here once your dermatologist has completed their review.
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -346,6 +613,32 @@ export default function CaseDetailsPage({ params }: { params: Promise<{ caseId: 
             </div>
 
             <div className="space-y-4">
+              {(resolvedReportPdfUrl || resolvedReportGeneratedAt) && (
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-blue-50 dark:bg-blue-950 rounded-xl border border-blue-200 dark:border-blue-800">
+                  <div>
+                    <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">Official Review PDF</p>
+                    {resolvedReportGeneratedAt && (
+                      <p className="text-xs text-blue-600 dark:text-blue-400">
+                        Generated on {new Date(resolvedReportGeneratedAt).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                  {resolvedReportPdfUrl && (
+                    <a
+                      href={resolvedReportPdfUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4" />
+                      </svg>
+                      Download PDF
+                    </a>
+                  )}
+                </div>
+              )}
+
               {/* Case Summary */}
               <div>
                 <h3 className="font-semibold mb-2">Case Summary</h3>
@@ -410,22 +703,70 @@ export default function CaseDetailsPage({ params }: { params: Promise<{ caseId: 
 
         {/* Pending Review Message */}
         {!review && caseData.status === 'submitted_for_review' && (
-          <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
-            <div className="w-16 h-16 bg-yellow-100 dark:bg-yellow-900 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-yellow-100 dark:bg-yellow-900 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold mb-2">Review Pending</h3>
+              <p className="text-gray-600 dark:text-gray-400">
+                Your case is in the queue for dermatologist review.<br />
+                We'll notify you once the review is complete.
+              </p>
             </div>
-            <h3 className="text-xl font-bold mb-2">Review Pending</h3>
-            <p className="text-gray-600 dark:text-gray-400">
-              Your case is in the queue for dermatologist review.<br />
-              We'll notify you once the review is complete.
-            </p>
+            
+            {/* Assigned Doctor Info */}
+            {caseData.assigned_doctor?.[0] && (
+              <div className="border-t border-gray-200 dark:border-gray-700 bg-blue-50 dark:bg-blue-950 p-6">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <h4 className="font-semibold text-lg">{caseData.assigned_doctor[0].name}</h4>
+                        <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">
+                          {caseData.assigned_doctor[0].title}
+                        </p>
+                      </div>
+                      <span className="px-3 py-1 bg-blue-600 text-white text-xs font-semibold rounded-full">
+                        Assigned
+                      </span>
+                    </div>
+                    <div className="space-y-2 mt-3">
+                      <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                        <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span><strong>Specialty:</strong> {caseData.assigned_doctor[0].specialty}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                        <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>{caseData.assigned_doctor[0].experience}</span>
+                      </div>
+                    </div>
+                    <div className="mt-4 p-3 bg-white dark:bg-gray-900 rounded-lg">
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        <svg className="w-4 h-4 inline mr-1 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                        AI matched based on your detected conditions
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
     </div>
   )
 }
-
-

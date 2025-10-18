@@ -7,6 +7,7 @@ import LoadingSpinner from '@/components/LoadingSpinner'
 import { DetectedCondition } from '@/lib/types/case'
 import { supabase } from '@/lib/supabase/client'
 import BottomNavigation from '@/components/BottomNavigation'
+import { WithAuth } from '@/components/WithAuth'
 
 type Step = 'upload' | 'analyzing' | 'results' | 'submitted'
 
@@ -22,6 +23,14 @@ interface AnalysisData {
   }
 }
 
+interface AssignedDoctor {
+  id: string
+  name: string
+  specialty: string
+  title?: string
+  experience?: string
+}
+
 export default function SkinAnalysisPage() {
   const router = useRouter()
   const [step, setStep] = useState<Step>('upload')
@@ -30,6 +39,7 @@ export default function SkinAnalysisPage() {
   const [error, setError] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [patientDescription, setPatientDescription] = useState<string>('')
+  const [assignedDoctor, setAssignedDoctor] = useState<AssignedDoctor | null>(null)
 
   const handlePhotoCapture = async (file: File) => {
     setIsProcessing(true)
@@ -90,6 +100,7 @@ export default function SkinAnalysisPage() {
 
     setIsProcessing(true)
     setError(null)
+    setAssignedDoctor(null)
 
     try {
       const response = await fetch('/api/cases/submit-for-review', {
@@ -102,6 +113,8 @@ export default function SkinAnalysisPage() {
         throw new Error('Failed to submit for review')
       }
 
+      const responseData = await response.json()
+      setAssignedDoctor(responseData.assignedDoctor ?? null)
       setStep('submitted')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
@@ -116,6 +129,7 @@ export default function SkinAnalysisPage() {
     setAnalysis(null)
     setError(null)
     setPatientDescription('')
+    setAssignedDoctor(null)
   }
 
   const getSeverityColor = (severity: string) => {
@@ -129,7 +143,8 @@ export default function SkinAnalysisPage() {
   }
 
       return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-blue-50 dark:from-gray-900 dark:via-blue-950 dark:to-gray-900 pb-20">
+    <WithAuth redirectTo="/profile">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-blue-50 dark:from-gray-900 dark:via-blue-950 dark:to-gray-900 pb-20">
       {/* Header */}
       <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-4">
@@ -382,6 +397,37 @@ export default function SkinAnalysisPage() {
               Your case has been submitted to our dermatologists for review. 
               You'll receive a detailed report once the review is complete.
             </p>
+
+            {assignedDoctor && (
+              <div className="max-w-md mx-auto mb-8 p-6 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-2xl text-left">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <div>
+                      <p className="text-sm font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide">AI Matched Dermatologist</p>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{assignedDoctor.name}</h3>
+                      {assignedDoctor.title && (
+                        <p className="text-sm text-blue-600 dark:text-blue-400">{assignedDoctor.title}</p>
+                      )}
+                    </div>
+                    <div className="text-sm text-gray-700 dark:text-gray-300 space-y-1">
+                      <p><strong>Specialty:</strong> {assignedDoctor.specialty}</p>
+                      {assignedDoctor.experience && (
+                        <p><strong>Experience:</strong> {assignedDoctor.experience}</p>
+                      )}
+                    </div>
+                    <p className="text-xs text-blue-700 dark:text-blue-300 bg-white/70 dark:bg-blue-900/40 rounded-lg px-3 py-2">
+                      Our AI matched this dermatologist based on the conditions detected in your analysis.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="flex flex-col sm:flex-row gap-3 justify-center max-w-md mx-auto">
               <button
                 onClick={() => router.push(`/cases/${caseId}`)}
@@ -401,7 +447,8 @@ export default function SkinAnalysisPage() {
       </div>
       
       <BottomNavigation />
-    </div>
+      </div>
+    </WithAuth>
   )
 }
 

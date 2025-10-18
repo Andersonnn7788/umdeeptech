@@ -52,11 +52,13 @@ CREATE TABLE IF NOT EXISTS cases (
   image_url TEXT NOT NULL,
   thumbnail_url TEXT,
   patient_description TEXT,
+  assigned_doctor_id UUID,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   submitted_for_review_at TIMESTAMP WITH TIME ZONE,
   completed_at TIMESTAMP WITH TIME ZONE,
-  CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+  CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_assigned_doctor FOREIGN KEY (assigned_doctor_id) REFERENCES doctors(id) ON DELETE SET NULL
 );
 
 -- AI Analysis Results table
@@ -86,7 +88,7 @@ CREATE TABLE IF NOT EXISTS dermatologist_reviews (
   urgency_level severity_level,
   reviewed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   CONSTRAINT fk_case_review FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE,
-  CONSTRAINT fk_dermatologist FOREIGN KEY (dermatologist_id) REFERENCES auth.users(id) ON DELETE CASCADE
+  CONSTRAINT fk_dermatologist FOREIGN KEY (dermatologist_id) REFERENCES doctors(id) ON DELETE CASCADE
 );
 
 -- User Reports table - final reports delivered to users
@@ -100,13 +102,14 @@ CREATE TABLE IF NOT EXISTS user_reports (
 );
 
 -- Indexes for better query performance
-CREATE INDEX idx_cases_user_id ON cases(user_id);
-CREATE INDEX idx_cases_status ON cases(status);
-CREATE INDEX idx_cases_created_at ON cases(created_at DESC);
-CREATE INDEX idx_analysis_results_case_id ON analysis_results(case_id);
-CREATE INDEX idx_dermatologist_reviews_case_id ON dermatologist_reviews(case_id);
-CREATE INDEX idx_dermatologist_reviews_dermatologist_id ON dermatologist_reviews(dermatologist_id);
-CREATE INDEX idx_user_reports_case_id ON user_reports(case_id);
+CREATE INDEX IF NOT EXISTS idx_cases_user_id ON cases(user_id);
+CREATE INDEX IF NOT EXISTS idx_cases_status ON cases(status);
+CREATE INDEX IF NOT EXISTS idx_cases_created_at ON cases(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_cases_assigned_doctor_id ON cases(assigned_doctor_id);
+CREATE INDEX IF NOT EXISTS idx_analysis_results_case_id ON analysis_results(case_id);
+CREATE INDEX IF NOT EXISTS idx_dermatologist_reviews_case_id ON dermatologist_reviews(case_id);
+CREATE INDEX IF NOT EXISTS idx_dermatologist_reviews_dermatologist_id ON dermatologist_reviews(dermatologist_id);
+CREATE INDEX IF NOT EXISTS idx_user_reports_case_id ON user_reports(case_id);
 
 -- Row Level Security (RLS) Policies
 
@@ -223,6 +226,20 @@ ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
   public = EXCLUDED.public;
 
+-- Bucket for dermatologist review PDFs (kept private)
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('case-reports', 'case-reports', false)
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  public = EXCLUDED.public;
+
+-- Bucket for dermatologist review PDFs (kept private)
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('case-reports', 'case-reports', false)
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  public = EXCLUDED.public;
+
 -- Storage policies
 -- Idempotent: Users can upload their own images
 DO $$ BEGIN
@@ -318,6 +335,7 @@ CREATE TABLE IF NOT EXISTS patients (
     phone VARCHAR(50),
     date_of_birth DATE,
     avatar TEXT,
+    role VARCHAR(50) DEFAULT 'patient' CHECK (role IN ('patient', 'doctor')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -393,6 +411,14 @@ ALTER TABLE appointments ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Doctors are viewable by everyone" ON doctors
     FOR SELECT USING (true);
 
+-- Allow doctors to insert their own profile
+CREATE POLICY "Doctors can create own profile" ON doctors
+    FOR INSERT WITH CHECK (auth.uid()::text = id::text);
+
+-- Allow doctors to update their own profile
+CREATE POLICY "Doctors can update own profile" ON doctors
+    FOR UPDATE USING (auth.uid()::text = id::text);
+
 -- Allow patients to see their own data
 CREATE POLICY "Patients can view own data" ON patients
     FOR SELECT USING (auth.uid()::text = id::text OR id::text = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee');
@@ -424,3 +450,14 @@ CREATE POLICY "Anonymous users can create sample appointments" ON appointments
         OR auth.uid() IS NOT NULL
     );
 
+-- Add role column to existing patients table if it doesn't exist
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+        AND table_name = 'patients' 
+        AND column_name = 'role'
+    ) THEN
+        ALTER TABLE patients ADD COLUMN role VARCHAR(50) DEFAULT 'patient' CHECK (role IN ('patient', 'doctor'));
+    END IF;
+END $$;

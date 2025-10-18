@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import { useAuth } from '@/lib/hooks/useAuth'
-import { Home, Calendar, Heart, User } from 'lucide-react'
+import { Home, Calendar, MessageSquare, User } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import DoctorChatbot from '@/components/DoctorChatbot'
+import { supabase } from '@/lib/supabase/client'
 
 interface Case {
   id: string
@@ -17,6 +19,10 @@ interface Case {
   patient_description?: string
   created_at: string
   submitted_for_review_at: string
+  patient?: {
+    id: string
+    name: string | null
+  }
   analysis_results: Array<{
     ai_confidence_score: number
     detected_conditions: Array<{
@@ -36,6 +42,7 @@ export default function DermatologistCasesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedCase, setSelectedCase] = useState<Case | null>(null)
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false)
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -121,14 +128,14 @@ export default function DermatologistCasesPage() {
             <div>
               <h1 className="text-xl font-bold">Review Cases</h1>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                {cases.length} case{cases.length !== 1 ? 's' : ''} pending review
+                {cases.length} matched case{cases.length !== 1 ? 's' : ''} assigned to you
               </p>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-4 py-8 pb-24">
         {cases.length === 0 ? (
           <div className="text-center py-12">
             <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -138,7 +145,7 @@ export default function DermatologistCasesPage() {
             </div>
             <h2 className="text-xl font-bold mb-2">No Cases to Review</h2>
             <p className="text-gray-600 dark:text-gray-400">
-              There are currently no cases submitted for review.
+              There are no matched cases assigned to you yet. When a patient is paired with you, their case will appear here.
             </p>
           </div>
         ) : (
@@ -149,26 +156,23 @@ export default function DermatologistCasesPage() {
                 className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
                 onClick={() => setSelectedCase(caseItem)}
               >
-                {/* Image */}
-                <div className="relative w-full aspect-square bg-gray-100 dark:bg-gray-700">
-                  <Image
-                    src={caseItem.thumbnail_url || caseItem.image_url}
-                    alt="Case image"
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-
-                {/* Details */}
-                <div className="p-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                        Case ID: {caseItem.id.slice(0, 8)}...
-                      </p>
-                      <p className="text-sm text-gray-600 dark:text-gray-300">
-                        Submitted: {new Date(caseItem.submitted_for_review_at).toLocaleDateString()}
-                      </p>
+                <div className="p-4 space-y-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 flex items-center justify-center">
+                        <User className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                          {caseItem.patient?.name?.trim() || 'Unnamed Patient'}
+                        </h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Case ID: {caseItem.id.slice(0, 8)}...
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Submitted: {new Date(caseItem.submitted_for_review_at).toLocaleDateString()}
+                        </p>
+                      </div>
                     </div>
                     {caseItem.analysis_results?.[0] && (
                       <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getSeverityColor(caseItem.analysis_results[0].severity)}`}>
@@ -179,7 +183,7 @@ export default function DermatologistCasesPage() {
 
                   {caseItem.analysis_results?.[0] && (
                     <>
-                      <div className="mb-2">
+                      <div>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">AI Confidence</p>
                         <div className="flex items-center gap-2">
                           <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
@@ -195,7 +199,7 @@ export default function DermatologistCasesPage() {
                       </div>
 
                       {caseItem.analysis_results[0].detected_conditions?.length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                        <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
                           <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
                             Detected Conditions:
                           </p>
@@ -209,7 +213,7 @@ export default function DermatologistCasesPage() {
                     </>
                   )}
 
-                  <button className="mt-4 w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
+                  <button className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
                     Review Case
                   </button>
                 </div>
@@ -225,7 +229,6 @@ export default function DermatologistCasesPage() {
           caseData={selectedCase}
           onClose={() => setSelectedCase(null)}
           onSubmit={() => {
-            setSelectedCase(null)
             fetchCases()
           }}
         />
@@ -236,34 +239,62 @@ export default function DermatologistCasesPage() {
         <div className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 pb-safe">
           <div className="flex items-center justify-around px-4 py-3 max-w-md mx-auto">
             {[
-              { href: "/dermatologist", icon: Home, label: "Home", isActive: false, clickable: true },
-              { href: "/dermatologist/appointments", icon: Calendar, label: "Appointments", isActive: false, clickable: true },
-              { href: "#", icon: Heart, label: "Health", isActive: false, clickable: false },
-              { href: "/dermatologist/profile", icon: User, label: "Profile", isActive: false, clickable: true }
-            ].map((item) => (
-              <Link 
-                key={item.href} 
-                href={item.clickable ? item.href : "#"}
-                className={`flex flex-col items-center gap-1 flex-1 ${!item.clickable ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`}
-              >
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={!item.clickable}
-                  className={`flex flex-col items-center gap-1 h-auto py-2 px-3 ${
-                    item.isActive 
-                      ? "text-blue-600 dark:text-blue-400" 
-                      : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-                  }`}
+              { href: "/dermatologist", icon: Home, label: "Home", isActive: false, clickable: true, onClick: null },
+              { href: "/dermatologist/appointments", icon: Calendar, label: "Appointments", isActive: false, clickable: true, onClick: null },
+              { href: "#", icon: MessageSquare, label: "Chatbot", isActive: false, clickable: true, onClick: () => setIsChatbotOpen(true) },
+              { href: "/dermatologist/profile", icon: User, label: "Profile", isActive: false, clickable: true, onClick: null }
+            ].map((item) => {
+              if (item.onClick) {
+                return (
+                  <button
+                    key={item.href}
+                    onClick={item.onClick}
+                    className="flex flex-col items-center gap-1 flex-1"
+                  >
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={`flex flex-col items-center gap-1 h-auto py-2 px-3 ${
+                        item.isActive 
+                          ? "text-blue-600 dark:text-blue-400" 
+                          : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                      }`}
+                    >
+                      <item.icon className="h-6 w-6" />
+                      <span className="text-xs font-medium">{item.label}</span>
+                    </Button>
+                  </button>
+                )
+              }
+              
+              return (
+                <Link 
+                  key={item.href} 
+                  href={item.clickable ? item.href : "#"}
+                  className={`flex flex-col items-center gap-1 flex-1 ${!item.clickable ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`}
                 >
-                  <item.icon className="h-6 w-6" />
-                  <span className="text-xs font-medium">{item.label}</span>
-                </Button>
-              </Link>
-            ))}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={!item.clickable}
+                    className={`flex flex-col items-center gap-1 h-auto py-2 px-3 ${
+                      item.isActive 
+                        ? "text-blue-600 dark:text-blue-400" 
+                        : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                    }`}
+                  >
+                    <item.icon className="h-6 w-6" />
+                    <span className="text-xs font-medium">{item.label}</span>
+                  </Button>
+                </Link>
+              )
+            })}
           </div>
         </div>
       </div>
+
+      {/* Chatbot Modal */}
+      <DoctorChatbot isOpen={isChatbotOpen} onClose={() => setIsChatbotOpen(false)} />
     </div>
   )
 }
@@ -283,6 +314,65 @@ function ReviewModal({ caseData, onClose, onSubmit }: ReviewModalProps) {
   const [notes, setNotes] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [submissionResult, setSubmissionResult] = useState<{
+    pdfGeneratedAt: string | null
+    status: 'approved' | 'requires_resubmission'
+    pdfUrl?: string | null
+  } | null>(null)
+  const router = useRouter()
+
+  // Load AI analysis from Supabase directly for the selected case
+  type DetectedCondition = { name: string; confidence: number; description?: string }
+  interface AnalysisResult {
+    ai_confidence_score?: number | string
+    detected_conditions?: DetectedCondition[]
+    severity?: string
+    recommendations?: string
+  }
+  const [fetchedAnalysis, setFetchedAnalysis] = useState<AnalysisResult | null>(null)
+  const [isAnalysisLoading, setIsAnalysisLoading] = useState<boolean>(false)
+  const [analysisError, setAnalysisError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let isMounted = true
+    const loadAnalysis = async () => {
+      setIsAnalysisLoading(true)
+      setAnalysisError(null)
+      try {
+        // Use server API which validates access and reads with service role
+        const res = await fetch(`/api/cases/${caseData.id}`)
+        if (!res.ok) {
+          const payload = await res.json().catch(() => null)
+          throw new Error(payload?.error || 'Failed to load case analysis')
+        }
+        const payload = await res.json()
+        if (!isMounted) return
+
+        const first = payload?.case?.analysis_results?.[0]
+        if (first) {
+          const normalized: AnalysisResult = {
+            ai_confidence_score:
+              typeof first.ai_confidence_score === 'string'
+                ? parseFloat(first.ai_confidence_score as unknown as string)
+                : first.ai_confidence_score,
+            detected_conditions: (first.detected_conditions as any) || [],
+            severity: first.severity,
+            recommendations: first.recommendations,
+          }
+          setFetchedAnalysis(normalized)
+        } else {
+          setFetchedAnalysis(null)
+        }
+      } catch (err: any) {
+        setAnalysisError(err?.message || 'Failed to load AI analysis')
+      } finally {
+        if (isMounted) setIsAnalysisLoading(false)
+      }
+    }
+
+    loadAnalysis()
+    return () => { isMounted = false }
+  }, [caseData.id])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -310,11 +400,31 @@ function ReviewModal({ caseData, onClose, onSubmit }: ReviewModalProps) {
         }),
       })
 
-      if (!response.ok) {
-        throw new Error('Failed to submit review')
+      let data: any = null
+      try {
+        data = await response.json()
+      } catch {
+        // Ignore JSON parse errors; handled below
       }
 
-      onSubmit()
+      if (!response.ok) {
+        const message =
+          (data && typeof data === 'object' && 'error' in data && typeof data.error === 'string')
+            ? data.error
+            : 'Failed to submit review'
+        throw new Error(message)
+      }
+
+        setSubmissionResult({
+          pdfGeneratedAt:
+            typeof data?.report?.pdfGeneratedAt === 'string'
+              ? data.report.pdfGeneratedAt
+              : null,
+          status,
+          pdfUrl: typeof data?.report?.pdfUrl === 'string' ? data.report.pdfUrl : null,
+        })
+
+        onSubmit()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
@@ -323,6 +433,7 @@ function ReviewModal({ caseData, onClose, onSubmit }: ReviewModalProps) {
   }
 
   const analysis = caseData.analysis_results?.[0]
+  const headerTitle = submissionResult ? 'Review Submitted' : 'Review Case'
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -337,7 +448,7 @@ function ReviewModal({ caseData, onClose, onSubmit }: ReviewModalProps) {
         <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-2xl font-bold">Review Case</h2>
+            <h2 className="text-2xl font-bold">{headerTitle}</h2>
             <button
               onClick={onClose}
               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
@@ -350,7 +461,86 @@ function ReviewModal({ caseData, onClose, onSubmit }: ReviewModalProps) {
 
           {/* Content */}
           <div className="overflow-y-auto max-h-[calc(90vh-140px)]">
-            <div className="p-6 space-y-6">
+            {submissionResult ? (
+              <div className="p-6 space-y-6">
+                <div className="flex flex-col items-center text-center space-y-3">
+                  <div className="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
+                    <svg className="w-8 h-8 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-bold">Review Submitted</h3>
+                  <p className="text-gray-600 dark:text-gray-300 max-w-md">
+                    A comprehensive PDF report has been generated and securely stored for the patient.
+                  </p>
+                  {submissionResult.pdfGeneratedAt && (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Generated on {new Date(submissionResult.pdfGeneratedAt).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
+                    <p className="text-xs uppercase text-gray-500 dark:text-gray-400 font-semibold mb-1">Patient</p>
+                    <p className="text-lg font-semibold">{caseData.patient?.name ?? 'Patient'}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
+                      Status updated to <span className="font-semibold">{submissionResult.status.replace('_', ' ')}</span>.
+                    </p>
+                  </div>
+
+                  <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-xl border border-blue-200 dark:border-blue-800">
+                    <p className="text-xs uppercase text-blue-700 dark:text-blue-300 font-semibold mb-2">Diagnosis Summary</p>
+                    <p className="text-sm text-blue-900 dark:text-blue-100 whitespace-pre-line">
+                      {professionalDiagnosis}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex-1 px-6 py-3 bg-blue-50 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-xl border border-blue-200 dark:border-blue-700 text-center text-sm font-medium">
+                    A secure PDF has been sent to the patient and is available in their case view.
+                  </div>
+                  {submissionResult.pdfUrl && (
+                    <a
+                      href={submissionResult.pdfUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors text-center"
+                    >
+                      Download PDF
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose()
+                      router.refresh()
+                    }}
+                    className="px-6 py-3 border border-gray-300 dark:border-gray-600 rounded-xl font-semibold hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    Back to Cases
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="p-6 space-y-6">
+              {(caseData.patient?.name?.trim() ?? '').length > 0 && (
+                <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
+                  <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 flex items-center justify-center">
+                    <User className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 font-semibold">
+                      Patient
+                    </p>
+                    <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                      {caseData.patient?.name}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Image */}
               <div className="relative w-full max-w-md mx-auto aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700">
                 <Image
@@ -481,6 +671,45 @@ function ReviewModal({ caseData, onClose, onSubmit }: ReviewModalProps) {
                   </select>
                 </div>
 
+                {/* AI Analysis (fetched) */}
+                <div>
+                  <label className="block font-semibold mb-2">AI Analysis</label>
+                  <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-xl border border-blue-200 dark:border-blue-800">
+                    {isAnalysisLoading ? (
+                      <div className="text-sm text-blue-800 dark:text-blue-200">Loading AI analysis...</div>
+                    ) : analysisError ? (
+                      <div className="text-sm text-red-700 dark:text-red-300">{analysisError}</div>
+                    ) : fetchedAnalysis ? (
+                      <div className="space-y-2 text-sm">
+                        {typeof fetchedAnalysis.ai_confidence_score !== 'undefined' && (
+                          <p><strong>Confidence:</strong> {Number(fetchedAnalysis.ai_confidence_score).toFixed(0)}%</p>
+                        )}
+                        {fetchedAnalysis.severity && (
+                          <p><strong>Severity:</strong> {fetchedAnalysis.severity}</p>
+                        )}
+                        {fetchedAnalysis.detected_conditions && fetchedAnalysis.detected_conditions.length > 0 && (
+                          <div>
+                            <strong>Detected Conditions:</strong>
+                            <ul className="list-disc list-inside ml-2 mt-1">
+                              {fetchedAnalysis.detected_conditions.map((condition, idx) => (
+                                <li key={idx}>{condition.name} {typeof condition.confidence !== 'undefined' ? `(${condition.confidence}%)` : ''}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {fetchedAnalysis.recommendations && (
+                          <p><strong>AI Recommendations:</strong> {fetchedAnalysis.recommendations}</p>
+                        )}
+                        {!fetchedAnalysis.ai_confidence_score && !fetchedAnalysis.severity && (!fetchedAnalysis.detected_conditions || fetchedAnalysis.detected_conditions.length === 0) && !fetchedAnalysis.recommendations && (
+                          <p className="text-sm text-gray-600 dark:text-gray-300">No AI analysis available for this case.</p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-600 dark:text-gray-300">No AI analysis available for this case.</div>
+                    )}
+                  </div>
+                </div>
+
                 {/* Agrees with AI */}
                 <div>
                   <label className="flex items-center gap-3 cursor-pointer">
@@ -533,11 +762,10 @@ function ReviewModal({ caseData, onClose, onSubmit }: ReviewModalProps) {
                 </div>
               </form>
             </div>
+            )}
           </div>
         </div>
       </div>
     </div>
   )
 }
-
-

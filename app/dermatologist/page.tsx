@@ -71,14 +71,6 @@ export default function DermatologistDashboard() {
       onClick: null
     },
     {
-      href: "/dermatologist/appointments",
-      icon: Calendar,
-      label: "Appointments",
-      isActive: false,
-      clickable: true,
-      onClick: null
-    },
-    {
       href: "#",
       icon: MessageSquare,
       label: "Chatbot",
@@ -137,24 +129,20 @@ export default function DermatologistDashboard() {
             {navItems.map((item, index) => {
               if (item.onClick) {
                 return (
-                  <button
+                  <Button
                     key={item.href}
                     onClick={item.onClick}
-                    className="flex flex-col items-center gap-1 flex-1"
+                    variant="ghost"
+                    size="sm"
+                    className={`flex flex-col items-center gap-1 h-auto py-2 px-3 flex-1 ${
+                      item.isActive 
+                        ? "text-blue-600 dark:text-blue-400" 
+                        : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                    }`}
                   >
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className={`flex flex-col items-center gap-1 h-auto py-2 px-3 ${
-                        item.isActive 
-                          ? "text-blue-600 dark:text-blue-400" 
-                          : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-                      }`}
-                    >
-                      <item.icon className="h-6 w-6" />
-                      <span className="text-xs font-medium">{item.label}</span>
-                    </Button>
-                  </button>
+                    <item.icon className="h-6 w-6" />
+                    <span className="text-xs font-medium">{item.label}</span>
+                  </Button>
                 )
               }
               

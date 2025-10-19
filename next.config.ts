@@ -3,7 +3,13 @@ import type { NextConfig } from 'next'
 type ImageConfig = NonNullable<NextConfig['images']>
 type RemotePatternList = NonNullable<ImageConfig['remotePatterns']>
 
-const remotePatterns: RemotePatternList = []
+const remotePatterns: RemotePatternList = [
+  {
+  protocol: 'https',
+  hostname: 'eketluxoscniasfhhfqt.supabase.co',
+  pathname: '/storage/v1/object/public/**',
+},
+]
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 
@@ -14,7 +20,7 @@ if (supabaseUrl) {
     remotePatterns.push({
       protocol: 'https',
       hostname,
-      pathname: '/storage/v1/object/public/**',
+      pathname: '/storage/**',
     })
   } catch (error) {
     console.warn(
@@ -38,3 +44,4 @@ const nextConfig: NextConfig = {
 }
 
 export default nextConfig
+

@@ -21,6 +21,7 @@ interface PdfSectionContent {
     recommendations: string[]
     next_steps: string[]
     disclaimer: string
+    schedule?: any[]
   }
 }
 
@@ -278,6 +279,8 @@ export async function POST(request: NextRequest) {
       agreesWithAi,
       notes,
       urgencyLevel,
+      prescriptions,
+      schedule,
     } = await request.json()
 
     if (!caseId || !status || !professionalDiagnosis || !treatmentRecommendations) {
@@ -312,6 +315,8 @@ export async function POST(request: NextRequest) {
         agrees_with_ai: agreesWithAi,
         notes,
         urgency_level: urgencyLevel,
+        prescriptions: prescriptions || [],
+        schedule: schedule || [],
       })
       .select()
       .single()
@@ -373,6 +378,7 @@ export async function POST(request: NextRequest) {
           recommendations: string[]
           next_steps: string[]
           disclaimer: string
+          schedule?: any[]
           pdf_path?: string
           pdf_generated_at?: string
         } = {
@@ -387,6 +393,7 @@ export async function POST(request: NextRequest) {
             'Contact emergency services if you experience severe symptoms'
           ],
           disclaimer: 'This report is for informational purposes. Always consult with healthcare professionals for medical advice.',
+          schedule: schedule || [],
         }
 
         // Fetch patient and dermatologist profile information for the PDF

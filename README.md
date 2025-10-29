@@ -1,4 +1,4 @@
-# UMDeepTech - AI-Powered Skin Analysis Platform
+# AI-Powered Teledermatology Platform
 
 A modern, mobile-first Next.js application that provides AI-powered skin analysis with professional dermatologist review. Built with Next.js 15, Supabase, OpenAI, and Tailwind CSS.
 
